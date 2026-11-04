@@ -1,59 +1,63 @@
-# Welcome to Your New Wails3 Project!
+# Astra
 
-Congratulations on generating your Wails3 application! This README will guide you through the next steps to get your project up and running.
+A macOS desktop app for managing SSH tunnels into IBM Cloud VPC. Create profiles, connect with one click, and access private VPC services (Postgres, Redis, Elasticsearch, etc.) as if they were local.
 
-## Getting Started
+## Features
 
-1. Navigate to your project directory in the terminal.
+- **Profile-based** — save bastion host details and port-forward rules per environment
+- **One-click connect/disconnect** — spawns `ssh -N -L` in the background, no terminal needed
+- **Auto-reconnect** — if the tunnel drops unexpectedly, retries 3× with 5s → 15s → 30s backoff
+- **Health checks** — TCP-dials each forwarded port every 30s to confirm it's alive
+- **Live logs** — SSH stderr streamed in real-time, last 500 lines kept
+- **Port freeing** — kills whatever process holds your local port before connecting
+- **Service presets** — Postgres, Redis, Valkey, Elasticsearch, Event Streams, or custom
 
-2. To run your application in development mode, use the following command:
+## Usage
 
-   ```
-   wails3 dev
-   ```
+1. Click **New Profile** and fill in your bastion host details (host, port, user, SSH key path)
+2. Add one or more port forwards — pick a service preset or enter custom host:port
+3. Hit **Connect** — Astra starts the SSH tunnel and shows live status
+4. Your local ports are now forwarded through the bastion into VPC
 
-   This will start your application and enable hot-reloading for both frontend and backend changes.
+Astra lives in your dock. Closing the window hides it; it keeps running until you quit from the dock menu.
 
-3. To build your application for production, use:
+## Building
 
-   ```
-   wails3 build
-   ```
+Requires Go 1.26+, Node.js, and [Wails v3](https://v3.wails.io/).
 
-   This will create a production-ready executable in the `build` directory.
+```bash
+# Dev mode (hot-reload)
+wails3 task darwin:run
 
-## Exploring Wails3 Features
+# Production build (.app)
+wails3 task darwin:package
 
-Now that you have your project set up, it's time to explore the features that Wails3 offers:
+# Universal DMG (arm64 + amd64, shareable)
+wails3 task darwin:package:universal && wails3 task darwin:create:dmg
+```
 
-1. **Check out the examples**: The best way to learn is by example. Visit the `examples` directory in the `v3/examples` directory to see various sample applications.
-
-2. **Run an example**: To run any of the examples, navigate to the example's directory and use:
-
-   ```
-   go run .
-   ```
-
-   Note: Some examples may be under development during the alpha phase.
-
-3. **Explore the documentation**: Visit the [Wails3 documentation](https://v3.wails.io/) for in-depth guides and API references.
-
-4. **Join the community**: Have questions or want to share your progress? Join the [Wails Discord](https://discord.gg/JDdSxwjhGf) or visit the [Wails discussions on GitHub](https://github.com/wailsapp/wails/discussions).
+Output lands in `bin/`.
 
 ## Project Structure
 
-Take a moment to familiarize yourself with your project structure:
+```
+astra/
+├── main.go           # App bootstrap, window config, quit handler
+├── astraservice.go   # Wails service: profile CRUD + tunnel connect/disconnect
+├── tunnel.go         # TunnelManager: SSH process lifecycle, health pinger, auto-reconnect
+├── types.go          # Profile, PortForward, TunnelState, LogEntry
+├── storage.go        # JSON persistence → ~/Library/Application Support/Astra/data.json
+└── frontend/
+    └── src/
+        ├── App.tsx           # Two-panel layout (dark sidebar + light content)
+        ├── useAstra.ts       # React hook wiring all backend calls + tunnel:state events
+        ├── components/
+        │   ├── ProfileList.tsx    # Sidebar with profiles + status dots
+        │   ├── ProfileDetail.tsx  # Detail view: connect button, port forward list, logs
+        │   └── ProfileForm.tsx    # Create/edit profile form
+        └── types.ts          # TypeScript types mirroring Go models
+```
 
-- `frontend/`: Contains your frontend code (HTML, CSS, JavaScript/TypeScript)
-- `main.go`: The entry point of your Go backend
-- `app.go`: Define your application structure and methods here
-- `wails.json`: Configuration file for your Wails project
+## Data
 
-## Next Steps
-
-1. Modify the frontend in the `frontend/` directory to create your desired UI.
-2. Add backend functionality in `main.go`.
-3. Use `wails3 dev` to see your changes in real-time.
-4. When ready, build your application with `wails3 build`.
-
-Happy coding with Wails3! If you encounter any issues or have questions, don't hesitate to consult the documentation or reach out to the Wails community.
+Profiles are stored at `~/Library/Application Support/Astra/data.json`. Tunnels are runtime-only — they are not auto-started on launch.
