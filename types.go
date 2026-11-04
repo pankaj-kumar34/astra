@@ -34,6 +34,7 @@ type Profile struct {
 	KeyPath     string        `json:"keyPath"`
 	Description string        `json:"description"`
 	Forwards    []PortForward `json:"forwards"`
+	AutoConnect bool          `json:"autoConnect"`
 	CreatedAt   string        `json:"createdAt,omitempty"`
 	UpdatedAt   string        `json:"updatedAt,omitempty"`
 }
@@ -50,12 +51,13 @@ const (
 
 // TunnelState holds runtime state for a tunnel
 type TunnelState struct {
-	ProfileID string       `json:"profileId"`
-	Status    TunnelStatus `json:"status"`
-	PID       int          `json:"pid"`
-	StartedAt *time.Time   `json:"startedAt"`
-	Error     string       `json:"error"`
-	Logs      []LogEntry   `json:"logs"`
+	ProfileID   string            `json:"profileId"`
+	Status      TunnelStatus      `json:"status"`
+	PID         int               `json:"pid"`
+	StartedAt   *time.Time        `json:"startedAt"`
+	Error       string            `json:"error"`
+	Logs        []LogEntry        `json:"logs"`
+	PortHealth  map[string]bool   `json:"portHealth"` // localPort string → reachable
 }
 
 // LogEntry is a single log line from the SSH process

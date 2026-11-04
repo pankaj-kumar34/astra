@@ -194,6 +194,8 @@ tasks:
     summary: Generates Windows `.ico` and Mac `.icns` from an image; on macOS, `-iconcomposerinput appicon.icon -macassetdir darwin` also produces `Assets.car` from a `.icon` file (skipped on other platforms).
     run: once
     dir: build
+    status:
+      - test -f darwin/icons.icns
     sources:
       - "appicon.png"
       - "appicon.icon"
@@ -201,6 +203,7 @@ tasks:
       - "darwin/icons.icns"
       - "windows/icon.ico"
     cmds:
+      - mkdir -p darwin windows
       - wails3 generate icons -input appicon.png -macfilename darwin/icons.icns -windowsfilename windows/icon.ico -iconcomposerinput appicon.icon -macassetdir darwin
 
   dev:frontend:

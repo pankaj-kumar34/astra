@@ -20,7 +20,7 @@ func main() {
 
 	app := application.New(application.Options{
 		Name:        "Astra",
-		Description: "IBM Cloud VPC Tunnel Manager",
+		Description: "SSH Bastion Tunnel Manager",
 		Services: []application.Service{
 			application.NewService(svc),
 		},
@@ -39,11 +39,9 @@ func main() {
 		MinWidth:  900,
 		MinHeight: 600,
 		Mac: application.MacWindow{
-			InvisibleTitleBarHeight: 52,
-			Backdrop:                application.MacBackdropNormal,
-			TitleBar:                application.MacTitleBarHiddenInset,
-			Appearance:              application.NSAppearanceNameAqua,
-			// Disable fullscreen so green button maximises instead of going fullscreen
+			Backdrop:   application.MacBackdropNormal,
+			TitleBar:   application.MacTitleBarDefault,
+			Appearance: application.NSAppearanceNameAqua,
 			CollectionBehavior: application.MacWindowCollectionBehaviorManaged |
 				application.MacWindowCollectionBehaviorFullScreenNone,
 		},
@@ -66,9 +64,15 @@ func main() {
 		win.Focus()
 	})
 
+	// Auto-connect profiles flagged for auto-connect
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(e *application.ApplicationEvent) {
+		InitNotifications()
+		svc.AutoConnectAll()
+	})
+
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}
 	// app.Run() returns on quit — kill all SSH processes so ports are freed
-	svc.manager.DisconnectAll()
+	_ = svc.DisconnectAll()
 }

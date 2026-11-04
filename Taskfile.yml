@@ -12,11 +12,19 @@ vars:
 
 includes:
   common: ./build/Taskfile.yml
-  windows: ./build/windows/Taskfile.yml
   darwin: ./build/darwin/Taskfile.yml
-  linux: ./build/linux/Taskfile.yml
-  ios: ./build/ios/Taskfile.yml
-  android: ./build/android/Taskfile.yml
+  windows:
+    taskfile: ./build/windows/Taskfile.yml
+    optional: true
+  linux:
+    taskfile: ./build/linux/Taskfile.yml
+    optional: true
+  ios:
+    taskfile: ./build/ios/Taskfile.yml
+    optional: true
+  android:
+    taskfile: ./build/android/Taskfile.yml
+    optional: true
 
 tasks:
   build:

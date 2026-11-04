@@ -23,6 +23,7 @@
             <string>12.0.0</string>
         <key>NSHighResolutionCapable</key>
             <string>true</string>
+        <key>NSUserNotificationUsageDescription</key><string>Astra notifies you when tunnels connect or disconnect.</string>
         <key>NSHumanReadableCopyright</key>
             <string>© 2026, My Company</string>
         <key>NSAppTransportSecurity</key>

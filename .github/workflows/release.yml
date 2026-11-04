@@ -1,0 +1,180 @@
+name: Release
+
+on:
+  pull_request:
+    types:
+      - closed
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: 'Version bump type (patch, minor, major)'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+      dry_run:
+        description: 'Dry run (build only, do not tag or publish release)'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build & Release
+    if: (github.event.pull_request.merged == true) || github.event_name == 'workflow_dispatch'
+    runs-on: macos-latest
+    permissions:
+      contents: write
+      pull-requests: read
+      issues: read
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Determine next version
+        id: versioning
+        run: |
+          set -e
+          git fetch --tags --force || true
+
+          LATEST_TAG=$(git tag -l "v*.*.*" --sort=-v:refname | head -n 1)
+          if [ -z "$LATEST_TAG" ]; then
+            LATEST_TAG="v1.0.0"
+            INITIAL_RELEASE=true
+          else
+            INITIAL_RELEASE=false
+          fi
+
+          echo "Latest tag found: $LATEST_TAG"
+
+          # Strip 'v' prefix
+          RAW_VERSION="${LATEST_TAG#v}"
+          IFS='.' read -r MAJOR MINOR PATCH <<< "$RAW_VERSION"
+          MAJOR=${MAJOR:-1}
+          MINOR=${MINOR:-0}
+          PATCH=${PATCH:-0}
+
+          # Determine bump type
+          BUMP_TYPE="patch"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            BUMP_TYPE="${{ github.event.inputs.bump }}"
+          else
+            PR_TITLE="${{ github.event.pull_request.title }}"
+            PR_LABELS="${{ join(github.event.pull_request.labels.*.name, ' ') }}"
+
+            if echo "$PR_LABELS $PR_TITLE" | grep -Ei "(major|breaking|feat!|fix!)" > /dev/null; then
+              BUMP_TYPE="major"
+            elif echo "$PR_LABELS $PR_TITLE" | grep -Ei "(minor|feature|feat:|feat\()" > /dev/null; then
+              BUMP_TYPE="minor"
+            else
+              BUMP_TYPE="patch"
+            fi
+          fi
+
+          if [ "$INITIAL_RELEASE" = "true" ] && [ -z "$(git tag -l "v1.0.0")" ]; then
+            NEW_VERSION="v1.0.0"
+          else
+            case "$BUMP_TYPE" in
+              major)
+                MAJOR=$((MAJOR + 1))
+                MINOR=0
+                PATCH=0
+                ;;
+              minor)
+                MINOR=$((MINOR + 1))
+                PATCH=0
+                ;;
+              patch|*)
+                PATCH=$((PATCH + 1))
+                ;;
+            esac
+            NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          fi
+
+          echo "Calculated version: $NEW_VERSION (bump: $BUMP_TYPE)"
+          echo "version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "raw_version=${NEW_VERSION#v}" >> "$GITHUB_OUTPUT"
+          echo "is_initial=$INITIAL_RELEASE" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: 'go.mod'
+          cache: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Task & Wails CLI
+        run: |
+          go install github.com/go-task/task/v3/cmd/task@latest
+          go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+          task --version
+          wails3 version
+
+      - name: Package macOS DMG
+        run: |
+          task darwin:package:dmg
+
+      - name: Prepare Release Artifacts
+        run: |
+          VERSION="${{ steps.versioning.outputs.version }}"
+          mkdir -p release-artifacts
+
+          # Copy and standardize DMG artifact naming
+          if [ -f bin/astra.dmg ]; then
+            cp bin/astra.dmg "release-artifacts/Astra-${VERSION}-macOS.dmg"
+          fi
+
+          # Archive .app into a standard distributable zip
+          if [ -d bin/astra.app ]; then
+            ditto -c -k --keepParent bin/astra.app "release-artifacts/Astra-${VERSION}-macOS.zip"
+          fi
+
+          # Generate SHA256 checksums
+          cd release-artifacts
+          shasum -a 256 *.dmg *.zip > checksums.txt
+          cat checksums.txt
+          cd ..
+
+      - name: Tag Git Commit
+        if: github.event.inputs.dry_run != 'true'
+        run: |
+          VERSION="${{ steps.versioning.outputs.version }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag -a "$VERSION" -m "Release $VERSION"
+          git push origin "$VERSION"
+
+      - name: Publish GitHub Release
+        if: github.event.inputs.dry_run != 'true'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versioning.outputs.version }}
+          name: "Astra ${{ steps.versioning.outputs.version }}"
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          files: |
+            release-artifacts/*.dmg
+            release-artifacts/*.zip
+            release-artifacts/checksums.txt
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

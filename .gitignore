@@ -4,12 +4,12 @@ build/bin/
 mail-pulse
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
-frontend/dist/
+frontend/dist/*
+!frontend/dist/.gitkeep
 frontend/node_modules/
 frontend/bindings/
 frontend/.vite/
 
-# ── Go ────────────────────────────────────────────────────────────────────────
 *.test
 *.out
 
@@ -37,3 +37,4 @@ build/ios/
 build/linux/
 build/windows/
 build/docker/
+astra

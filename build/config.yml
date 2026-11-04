@@ -8,7 +8,7 @@ info:
   companyName: "Pankaj Kumar"
   productName: "Astra"
   productIdentifier: "com.pankajkumar.astra"
-  description: "IBM Cloud VPC SSH Tunnel Manager"
+  description: "SSH Bastion Tunnel Manager"
   copyright: "(c) 2026, Pankaj Kumar"
   comments: ""
   version: "1.0.0"

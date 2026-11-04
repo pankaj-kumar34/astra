@@ -1,6 +1,12 @@
 import { useState } from 'react'
-import { Profile, PortForward, ServiceType, SERVICE_PRESETS, emptyProfile } from '@/types'
-import { Plus, Trash2, X, ChevronDown, FolderOpen } from 'lucide-react'
+import {
+  Profile,
+  PortForward,
+  ServiceType,
+  SERVICE_PRESETS,
+  emptyProfile,
+} from '@/types'
+import { Plus, Trash2, X, ChevronDown, FolderOpen, ArrowRight, Shield, Zap } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { PickSSHKey } from '../../bindings/github.com/pankajkumar/astra/astraservice'
 
@@ -11,65 +17,14 @@ interface Props {
 }
 
 function newForward(): PortForward {
-  return { id: '', label: '', service: ServiceType.ServicePostgres, localPort: 5432, remoteHost: '', remotePort: 5432 }
-}
-
-function LInput({ value, onChange, placeholder, mono, type = 'text', error }: {
-  value: string | number; onChange: (v: string) => void; placeholder?: string
-  mono?: boolean; type?: string; error?: boolean
-}) {
-  return (
-    <input
-      type={type}
-      value={value}
-      onChange={e => onChange(e.target.value)}
-      placeholder={placeholder}
-      autoCapitalize="off"
-      autoCorrect="off"
-      autoComplete="off"
-      spellCheck={false}
-      style={{
-        width: '100%', boxSizing: 'border-box',
-        background: '#fff',
-        border: `1px solid ${error ? '#fca5a5' : '#e4e4e7'}`,
-        borderRadius: 7, padding: '7px 10px', fontSize: 12,
-        color: '#18181b', caretColor: '#10b981', outline: 'none',
-        fontFamily: mono ? '"SF Mono", ui-monospace, monospace' : 'inherit',
-        transition: 'border-color 0.15s, box-shadow 0.15s',
-      }}
-      onFocus={e => {
-        e.currentTarget.style.borderColor = error ? '#f87171' : '#10b981'
-        e.currentTarget.style.boxShadow = `0 0 0 3px ${error ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.12)'}`
-      }}
-      onBlur={e => {
-        e.currentTarget.style.borderColor = error ? '#fca5a5' : '#e4e4e7'
-        e.currentTarget.style.boxShadow = 'none'
-      }}
-    />
-  )
-}
-
-function LLabel({ children }: { children: React.ReactNode }) {
-  return <label style={{ fontSize: 11, fontWeight: 500, color: '#71717a', display: 'block', marginBottom: 5 }}>{children}</label>
-}
-
-function LSelect({ value, onChange, options }: {
-  value: string; onChange: (v: string) => void
-  options: { value: string; label: string }[]
-}) {
-  return (
-    <div style={{ position: 'relative' }}>
-      <select value={value} onChange={e => onChange(e.target.value)} style={{
-        width: '100%', boxSizing: 'border-box',
-        background: '#fff', border: '1px solid #e4e4e7',
-        borderRadius: 7, padding: '7px 28px 7px 10px', fontSize: 12,
-        color: '#18181b', outline: 'none', appearance: 'none', cursor: 'pointer',
-      }}>
-        {options.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
-      <ChevronDown style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', width: 12, height: 12, color: '#a1a1aa', pointerEvents: 'none' }} />
-    </div>
-  )
+  return {
+    id: `fwd-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+    label: '',
+    service: ServiceType.ServicePostgres,
+    localPort: 5432,
+    remoteHost: '',
+    remotePort: 5432,
+  }
 }
 
 export function ProfileForm({ profile, onSave, onCancel }: Props) {
@@ -80,29 +35,44 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
 
   function set<K extends keyof Profile>(k: K, v: Profile[K]) {
     setForm(prev => ({ ...prev, [k]: v }))
-    setErrors(prev => { const e = { ...prev }; delete e[k as string]; return e })
+    setErrors(prev => {
+      const e = { ...prev }
+      delete e[k as string]
+      return e
+    })
   }
 
   function validate(): boolean {
     const e: Record<string, string> = {}
-    if (!form.name.trim()) e.name = 'Required'
-    if (!form.host.trim()) e.host = 'Required'
-    if (!form.user.trim()) e.user = 'Required'
-    setErrors(e); return Object.keys(e).length === 0
+    if (!form.name.trim()) e.name = 'Profile name is required'
+    if (!form.host.trim()) e.host = 'Bastion host is required'
+    if (!form.user.trim()) e.user = 'SSH username is required'
+    setErrors(e)
+    return Object.keys(e).length === 0
   }
 
   async function handleSave() {
     if (!validate()) return
     setSaving(true)
-    try { await onSave(form) } finally { setSaving(false) }
+    try {
+      await onSave(form)
+    } finally {
+      setSaving(false)
+    }
   }
 
   function addForward() {
-    setForm(prev => ({ ...prev, forwards: [...(prev.forwards ?? []), newForward()] }))
+    setForm(prev => ({
+      ...prev,
+      forwards: [...(prev.forwards ?? []), newForward()],
+    }))
   }
 
   function removeForward(idx: number) {
-    setForm(prev => ({ ...prev, forwards: (prev.forwards ?? []).filter((_, i) => i !== idx) }))
+    setForm(prev => ({
+      ...prev,
+      forwards: (prev.forwards ?? []).filter((_, i) => i !== idx),
+    }))
   }
 
   function updateForward(idx: number, patch: Partial<PortForward>) {
@@ -128,202 +98,376 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
     .map(([k, v]) => ({ value: k, label: v.label }))
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: '#f4f4f5', position: 'relative' }}>
-
-      {/* Header — also serves as drag region for the title bar */}
-      <div
-       
-        style={{
-          padding: '52px 28px 16px', background: '#fff',
-          borderBottom: '1px solid #e4e4e7',
-          display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
-          position: 'relative', zIndex: 2,
-        }}
-      >
+    <div className="flex flex-col h-full bg-zinc-50/70 select-none overflow-hidden">
+      {/* Header */}
+      <header className="px-8 py-5 bg-white border-b border-zinc-200/90 flex items-center justify-between shadow-2xs">
         <div>
-          <h2 style={{ fontSize: 16, fontWeight: 700, color: '#18181b', margin: 0, letterSpacing: '-0.02em' }}>
-            {isNew ? 'New Profile' : 'Edit Profile'}
+          <h2 className="text-lg font-bold text-zinc-900 tracking-tight">
+            {isNew ? 'Create New Profile' : 'Edit Profile'}
           </h2>
-          <p style={{ fontSize: 12, color: '#71717a', margin: '3px 0 0' }}>
-            Configure your IBM Cloud VPC connection
+          <p className="text-xs text-zinc-500 mt-0.5">
+            Configure bastion SSH credentials and remote port forwarding targets
           </p>
         </div>
-        <button onClick={onCancel} style={{
-          background: 'none', border: 'none', cursor: 'pointer', padding: 4, color: '#a1a1aa', display: 'flex',
-        }}
-          onMouseEnter={e => (e.currentTarget.style.color = '#52525b')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#a1a1aa')}
+        <button
+          onClick={onCancel}
+          className="p-1.5 rounded-lg text-zinc-400 hover:text-zinc-700 hover:bg-zinc-100 transition-colors cursor-pointer"
         >
-          <X style={{ width: 16, height: 16 }} />
+          <X className="w-5 h-5" />
         </button>
-      </div>
+      </header>
 
-      {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '20px 28px', display: 'flex', flexDirection: 'column', gap: 20 }}>
+      {/* Form Content */}
+      <div className="flex-1 overflow-y-auto px-8 py-6">
+        <div className="w-full max-w-5xl space-y-6">
+          {/* Section: General & Bastion Info */}
+          <section className="bg-white rounded-2xl border border-zinc-200/90 shadow-2xs overflow-hidden">
+            <div className="px-6 py-4 bg-zinc-50/60 border-b border-zinc-100 flex items-center gap-2">
+              <Shield className="w-4 h-4 text-indigo-600" />
+              <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-700">
+                Bastion Host Configuration
+              </h3>
+            </div>
 
-        {/* Connection */}
-        <div style={{ background: '#fff', border: '1px solid #e4e4e7', borderRadius: 12, padding: '16px 18px' }}>
-          <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a1a1aa', margin: '0 0 14px' }}>
-            Connection
-          </p>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <LLabel>Profile Name {errors.name && <span style={{ color: '#ef4444', marginLeft: 4 }}>— {errors.name}</span>}</LLabel>
-              <LInput value={form.name} onChange={v => set('name', v)} placeholder="e.g. Production VPC" error={!!errors.name} />
-            </div>
-            <div style={{ gridColumn: '1 / -1' }}>
-              <LLabel>Description <span style={{ color: '#d4d4d8' }}>(optional)</span></LLabel>
-              <LInput value={form.description} onChange={v => set('description', v)} placeholder="What is this for?" />
-            </div>
-            <div style={{ height: 1, background: '#f4f4f5', gridColumn: '1 / -1', margin: '2px 0' }} />
-            <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 80px', gap: 10 }}>
-              <div>
-                <LLabel>VSI Host {errors.host && <span style={{ color: '#ef4444', marginLeft: 4 }}>— {errors.host}</span>}</LLabel>
-                <LInput value={form.host} onChange={v => set('host', v)} placeholder="169.x.x.x" mono error={!!errors.host} />
+            <div className="p-6 space-y-4">
+              {/* Profile Name & Description */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    Profile Name <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.name}
+                    onChange={e => set('name', e.target.value)}
+                    placeholder="e.g. Production Environment"
+                    className={cn(
+                      'w-full px-3 py-2 text-xs rounded-xl border bg-white text-zinc-900 placeholder:text-zinc-400 outline-none transition-all shadow-2xs',
+                      errors.name
+                        ? 'border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                        : 'border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20'
+                    )}
+                  />
+                  {errors.name && (
+                    <p className="text-[11px] text-rose-500 mt-1">{errors.name}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    Description <span className="text-zinc-400 font-normal">(optional)</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.description}
+                    onChange={e => set('description', e.target.value)}
+                    placeholder="e.g. Frankfurt region analytics DB"
+                    className="w-full px-3 py-2 text-xs rounded-xl border border-zinc-200 bg-white text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all shadow-2xs"
+                  />
+                </div>
               </div>
-              <div>
-                <LLabel>SSH Port</LLabel>
-                <LInput value={form.port} onChange={v => set('port', parseInt(v) || 22)} type="number" mono />
-              </div>
-            </div>
-            <div>
-              <LLabel>Username {errors.user && <span style={{ color: '#ef4444', marginLeft: 4 }}>— {errors.user}</span>}</LLabel>
-              <LInput value={form.user} onChange={v => set('user', v)} placeholder="ubuntu" mono error={!!errors.user} />
-            </div>
-            <div>
-              <LLabel>SSH Key Path</LLabel>
-              <div style={{ display: 'flex', gap: 6 }}>
-                <LInput value={form.keyPath} onChange={v => set('keyPath', v)} placeholder="~/.ssh/id_rsa" mono />
-                <button
-                  onClick={async () => {
-                    try {
-                      const path = await PickSSHKey()
-                      if (path) set('keyPath', path)
-                    } catch (_) {}
-                  }}
-                  title="Browse for key file"
-                  style={{
-                    flexShrink: 0, width: 32, height: 32, borderRadius: 7, cursor: 'pointer',
-                    background: '#f4f4f5', border: '1px solid #e4e4e7',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}
-                  onMouseEnter={e => (e.currentTarget.style.background = '#e4e4e7')}
-                  onMouseLeave={e => (e.currentTarget.style.background = '#f4f4f5')}
-                >
-                  <FolderOpen style={{ width: 14, height: 14, color: '#71717a' }} />
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        {/* Port Forwards */}
-        <div style={{ background: '#fff', border: '1px solid #e4e4e7', borderRadius: 12, padding: '16px 18px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-            <p style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#a1a1aa', margin: 0 }}>
-              Port Forwards
-            </p>
-            <button onClick={addForward} style={{
-              background: 'none', border: 'none', cursor: 'pointer', padding: '3px 8px',
-              fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, borderRadius: 5,
-              fontWeight: 500,
-            }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f0fdf4')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'none')}
-            >
-              <Plus style={{ width: 11, height: 11 }} /> Add
-            </button>
-          </div>
+              {/* Host & Port */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="md:col-span-3">
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    Bastion Host / IP <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.host}
+                    onChange={e => set('host', e.target.value)}
+                    placeholder="e.g. 169.48.12.34 or bastion.example.com"
+                    className={cn(
+                      'w-full px-3 py-2 text-xs font-mono rounded-xl border bg-white text-zinc-900 placeholder:text-zinc-400 outline-none transition-all shadow-2xs',
+                      errors.host
+                        ? 'border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                        : 'border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20'
+                    )}
+                  />
+                  {errors.host && (
+                    <p className="text-[11px] text-rose-500 mt-1">{errors.host}</p>
+                  )}
+                </div>
 
-          {(form.forwards ?? []).length === 0 ? (
-            <div onClick={addForward} style={{
-              border: '1px dashed #d4d4d8', borderRadius: 8,
-              padding: '18px 16px', textAlign: 'center', cursor: 'pointer',
-            }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#10b981')}
-              onMouseLeave={e => (e.currentTarget.style.borderColor = '#d4d4d8')}
-            >
-              <p style={{ fontSize: 12, color: '#a1a1aa', margin: 0 }}>No forwards yet — click to add one</p>
-            </div>
-          ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {(form.forwards ?? []).map((fwd, i) => (
-                <div key={i} style={{ background: '#f9f9f9', border: '1px solid #e4e4e7', borderRadius: 9, padding: '12px 14px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                    <span className={cn('text-[10px] px-2 py-0.5 rounded-full border font-medium',
-                      SERVICE_PRESETS[fwd.service]?.color ?? 'bg-zinc-100 text-zinc-500 border-zinc-200')}>
-                      {SERVICE_PRESETS[fwd.service]?.label}
-                    </span>
-                    <button onClick={() => removeForward(i)} style={{
-                      background: 'none', border: 'none', cursor: 'pointer', padding: 3, borderRadius: 4, color: '#d4d4d8',
-                    }}
-                      onMouseEnter={e => (e.currentTarget.style.color = '#ef4444')}
-                      onMouseLeave={e => (e.currentTarget.style.color = '#d4d4d8')}
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    SSH Port
+                  </label>
+                  <input
+                    type="number"
+                    value={form.port}
+                    onChange={e => set('port', parseInt(e.target.value) || 22)}
+                    className="w-full px-3 py-2 text-xs font-mono rounded-xl border border-zinc-200 bg-white text-zinc-900 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all shadow-2xs"
+                  />
+                </div>
+              </div>
+
+              {/* User & Key Path */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    SSH Username <span className="text-rose-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={form.user}
+                    onChange={e => set('user', e.target.value)}
+                    placeholder="e.g. ubuntu, ec2-user, root"
+                    className={cn(
+                      'w-full px-3 py-2 text-xs font-mono rounded-xl border bg-white text-zinc-900 placeholder:text-zinc-400 outline-none transition-all shadow-2xs',
+                      errors.user
+                        ? 'border-rose-300 focus:border-rose-500 focus:ring-2 focus:ring-rose-500/20'
+                        : 'border-zinc-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20'
+                    )}
+                  />
+                  {errors.user && (
+                    <p className="text-[11px] text-rose-500 mt-1">{errors.user}</p>
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-zinc-700 mb-1.5">
+                    Private Key Path
+                  </label>
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={form.keyPath}
+                      onChange={e => set('keyPath', e.target.value)}
+                      placeholder="~/.ssh/id_rsa"
+                      className="flex-1 px-3 py-2 text-xs font-mono rounded-xl border border-zinc-200 bg-white text-zinc-900 placeholder:text-zinc-400 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all shadow-2xs truncate"
+                    />
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        try {
+                          const path = await PickSSHKey()
+                          if (path) set('keyPath', path)
+                        } catch (_) {}
+                      }}
+                      title="Select key from disk"
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-medium rounded-xl border border-zinc-200 bg-zinc-50 hover:bg-zinc-100 text-zinc-700 transition-colors cursor-pointer shadow-2xs shrink-0"
                     >
-                      <Trash2 style={{ width: 13, height: 13 }} />
+                      <FolderOpen className="w-3.5 h-3.5 text-zinc-500" />
+                      <span>Browse…</span>
                     </button>
                   </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                    <div>
-                      <LLabel>Service</LLabel>
-                      <LSelect value={fwd.service} onChange={v => onServiceChange(i, v as ServiceType)} options={serviceOptions} />
-                    </div>
-                    <div>
-                      <LLabel>Label <span style={{ color: '#d4d4d8' }}>(optional)</span></LLabel>
-                      <LInput value={fwd.label} onChange={v => updateForward(i, { label: v })} placeholder="Production DB" />
-                    </div>
-                  </div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr 80px', gap: 8 }}>
-                    <div>
-                      <LLabel>Local Port</LLabel>
-                      <LInput value={fwd.localPort || ''} onChange={v => updateForward(i, { localPort: parseInt(v) || 0 })} type="number" mono />
-                    </div>
-                    <div>
-                      <LLabel>Remote Host</LLabel>
-                      <LInput value={fwd.remoteHost} onChange={v => updateForward(i, { remoteHost: v })} placeholder="10.0.0.5" mono />
-                    </div>
-                    <div>
-                      <LLabel>Remote Port</LLabel>
-                      <LInput value={fwd.remotePort || ''} onChange={v => updateForward(i, { remotePort: parseInt(v) || 0 })} type="number" mono />
-                    </div>
-                  </div>
                 </div>
-              ))}
+              </div>
+
+              {/* Auto Connect Switch */}
+              <div className="pt-2 border-t border-zinc-100">
+                <label className="flex items-center gap-3 cursor-pointer select-none">
+                  <div
+                    onClick={() => set('autoConnect', !form.autoConnect)}
+                    className={cn(
+                      'w-9 h-5 flex items-center rounded-full p-0.5 transition-colors cursor-pointer',
+                      form.autoConnect ? 'bg-indigo-600' : 'bg-zinc-300'
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        'bg-white w-4 h-4 rounded-full shadow-md transform transition-transform',
+                        form.autoConnect ? 'translate-x-4' : 'translate-x-0'
+                      )}
+                    />
+                  </div>
+                  <div>
+                    <span className="text-xs font-semibold text-zinc-800">
+                      Auto-connect on Astra launch
+                    </span>
+                    <p className="text-[11px] text-zinc-400">
+                      Automatically establishes this SSH tunnel when Astra starts up
+                    </p>
+                  </div>
+                </label>
+              </div>
             </div>
-          )}
+          </section>
+
+          {/* Section: Port Forwards */}
+          <section className="bg-white rounded-2xl border border-zinc-200/90 shadow-2xs overflow-hidden">
+            <div className="px-6 py-4 bg-zinc-50/60 border-b border-zinc-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Zap className="w-4 h-4 text-indigo-600" />
+                <h3 className="text-xs font-semibold uppercase tracking-wider text-zinc-700">
+                  Port Forwarding Rules
+                </h3>
+                <span className="text-[10px] font-mono bg-zinc-200 text-zinc-700 px-1.5 py-0.5 rounded font-semibold">
+                  {form.forwards?.length ?? 0}
+                </span>
+              </div>
+              <button
+                type="button"
+                onClick={addForward}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200/60 transition-colors cursor-pointer shadow-2xs"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Forward Rule</span>
+              </button>
+            </div>
+
+            <div className="p-6">
+              {(form.forwards ?? []).length === 0 ? (
+                <div
+                  onClick={addForward}
+                  className="border-2 border-dashed border-zinc-200 hover:border-indigo-400 rounded-2xl p-8 text-center cursor-pointer transition-colors group"
+                >
+                  <div className="w-10 h-10 rounded-xl bg-zinc-100 group-hover:bg-indigo-50 flex items-center justify-center mx-auto text-zinc-400 group-hover:text-indigo-600 transition-colors mb-2">
+                    <Plus className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs font-semibold text-zinc-700">No port forwarding rules</p>
+                  <p className="text-[11px] text-zinc-400 mt-0.5">
+                    Click here to forward local ports (Postgres, Redis, remote services)
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {(form.forwards ?? []).map((fwd, idx) => {
+                    const preset = SERVICE_PRESETS[fwd.service]
+                    return (
+                      <div
+                        key={fwd.id || idx}
+                        className="bg-zinc-50/60 rounded-xl border border-zinc-200/80 p-4 relative group"
+                      >
+                        <div className="flex items-center justify-between gap-3 mb-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={cn(
+                                'text-[10px] font-semibold px-2 py-0.5 rounded-full border',
+                                preset?.color ?? 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                              )}
+                            >
+                              Rule #{idx + 1}
+                            </span>
+                            <span className="text-xs font-semibold text-zinc-800">
+                              {fwd.label || preset?.label || 'Port Forward'}
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeForward(idx)}
+                            title="Delete rule"
+                            className="p-1 rounded text-zinc-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                          <div>
+                            <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                              Service Preset
+                            </label>
+                            <div className="relative">
+                              <select
+                                value={fwd.service}
+                                onChange={e => onServiceChange(idx, e.target.value as ServiceType)}
+                                className="w-full px-3 py-1.5 pr-8 text-xs rounded-lg border border-zinc-200 bg-white text-zinc-800 outline-none focus:border-indigo-500 appearance-none cursor-pointer"
+                              >
+                                {serviceOptions.map(opt => (
+                                  <option key={opt.value} value={opt.value}>
+                                    {opt.label}
+                                  </option>
+                                ))}
+                              </select>
+                              <ChevronDown className="w-3.5 h-3.5 text-zinc-400 absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                              Custom Label <span className="text-zinc-400">(optional)</span>
+                            </label>
+                            <input
+                              type="text"
+                              value={fwd.label}
+                              onChange={e => updateForward(idx, { label: e.target.value })}
+                              placeholder="e.g. Master DB"
+                              className="w-full px-3 py-1.5 text-xs rounded-lg border border-zinc-200 bg-white text-zinc-800 placeholder:text-zinc-400 outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Port Mapping Row */}
+                        <div className="grid grid-cols-1 md:grid-cols-7 gap-2.5 items-center">
+                          <div className="md:col-span-2">
+                            <label className="block text-[10px] font-mono uppercase text-zinc-400 mb-1">
+                              Local Port
+                            </label>
+                            <input
+                              type="number"
+                              value={fwd.localPort || ''}
+                              onChange={e =>
+                                updateForward(idx, { localPort: parseInt(e.target.value) || 0 })
+                              }
+                              placeholder="5432"
+                              className="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-zinc-200 bg-white text-zinc-900 outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div className="hidden md:flex justify-center pt-4">
+                            <ArrowRight className="w-4 h-4 text-zinc-400" />
+                          </div>
+
+                          <div className="md:col-span-3">
+                            <label className="block text-[10px] font-mono uppercase text-zinc-400 mb-1">
+                              Remote Target IP / Host
+                            </label>
+                            <input
+                              type="text"
+                              value={fwd.remoteHost}
+                              onChange={e => updateForward(idx, { remoteHost: e.target.value })}
+                              placeholder="10.0.0.5 or service.internal"
+                              className="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-zinc-200 bg-white text-zinc-900 outline-none focus:border-indigo-500"
+                            />
+                          </div>
+
+                          <div className="md:col-span-1">
+                            <label className="block text-[10px] font-mono uppercase text-zinc-400 mb-1">
+                              Remote Port
+                            </label>
+                            <input
+                              type="number"
+                              value={fwd.remotePort || ''}
+                              onChange={e =>
+                                updateForward(idx, { remotePort: parseInt(e.target.value) || 0 })
+                              }
+                              placeholder="5432"
+                              className="w-full px-3 py-1.5 text-xs font-mono rounded-lg border border-zinc-200 bg-white text-zinc-900 outline-none focus:border-indigo-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
         </div>
       </div>
 
-      {/* Footer */}
-      <div style={{
-        padding: '14px 28px', borderTop: '1px solid #e4e4e7', background: '#fff',
-        display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 8,
-      }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-        <button onClick={onCancel} style={{
-          background: 'none', border: '1px solid #e4e4e7', borderRadius: 7,
-          padding: '6px 16px', fontSize: 12, color: '#71717a', cursor: 'pointer', fontWeight: 500,
-        }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#f4f4f5')}
-          onMouseLeave={e => (e.currentTarget.style.background = 'none')}
+      {/* Sticky Bottom Actions Bar */}
+      <footer className="px-8 py-4 bg-white border-t border-zinc-200/90 flex items-center justify-end gap-3 shadow-sm">
+        <button
+          type="button"
+          onClick={onCancel}
+          className="px-4 py-2 text-xs font-semibold text-zinc-600 hover:text-zinc-900 hover:bg-zinc-100 rounded-xl border border-zinc-200/80 transition-colors cursor-pointer"
         >
           Cancel
         </button>
-        <button onClick={handleSave} disabled={saving} style={{
-          background: '#10b981', color: '#fff', border: 'none',
-          borderRadius: 7, padding: '6px 18px', fontSize: 12, fontWeight: 600,
-          cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
-          boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
-        }}
-          onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#059669' }}
-          onMouseLeave={e => (e.currentTarget.style.background = '#10b981')}
+        <button
+          type="button"
+          onClick={handleSave}
+          disabled={saving}
+          className="inline-flex items-center gap-2 px-5 py-2 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 rounded-xl shadow-sm shadow-indigo-600/30 transition-all cursor-pointer active:scale-98 disabled:opacity-50"
         >
-          {saving ? 'Saving…' : isNew ? 'Create Profile' : 'Save Changes'}
+          {saving ? 'Saving Profile…' : isNew ? 'Create Profile' : 'Save Changes'}
         </button>
-        </div>
-      </div>
+      </footer>
     </div>
   )
 }
-
-import React from 'react'

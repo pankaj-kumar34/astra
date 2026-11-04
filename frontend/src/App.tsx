@@ -5,67 +5,91 @@ import { ProfileDetail } from './components/ProfileDetail'
 import { ProfileForm } from './components/ProfileForm'
 import { Profile } from './types'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Plus, Shield, RefreshCw, Activity } from 'lucide-react'
 
 type View = 'detail' | 'form'
 
 export default function App() {
   const {
-    profiles, tunnelStates, selectedProfileId, selectedProfile, loading,
-    setSelectedProfileId, getTunnelState, saveProfile, deleteProfile, connect, disconnect,
+    profiles,
+    tunnelStates,
+    selectedProfileId,
+    selectedProfile,
+    loading,
+    setSelectedProfileId,
+    getTunnelState,
+    saveProfile,
+    deleteProfile,
+    duplicateProfile,
+    connect,
+    disconnect,
+    disconnectAll,
   } = useAstra()
 
   const [view, setView] = useState<View>('detail')
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null)
 
-  function openNew() { setEditingProfile(null); setView('form') }
-  function openEdit(p: Profile) { setEditingProfile(p); setView('form') }
+  function openNew() {
+    setEditingProfile(null)
+    setView('form')
+  }
+
+  function openEdit(p: Profile) {
+    setEditingProfile(p)
+    setView('form')
+  }
+
   async function handleSave(p: Profile) {
     const saved = await saveProfile(p)
     setSelectedProfileId(saved.id)
     setView('detail')
   }
-  async function handleDelete(id: string) { await deleteProfile(id); setView('detail') }
-  function handleSelect(id: string) { setSelectedProfileId(id); setView('detail') }
+
+  async function handleDelete(id: string) {
+    await deleteProfile(id)
+    setView('detail')
+  }
+
+  function handleSelect(id: string) {
+    setSelectedProfileId(id)
+    setView('detail')
+  }
 
   return (
     <TooltipProvider>
-      <div style={{
-        display: 'flex', height: '100vh', width: '100vw', overflow: 'hidden',
-        background: '#f4f4f5',
-        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif',
-        WebkitFontSmoothing: 'antialiased',
-      } as React.CSSProperties}>
+      <div className="flex h-screen w-screen overflow-hidden bg-zinc-100 font-sans antialiased text-zinc-900 select-none">
+        {/* Left Sidebar */}
+        <ProfileList
+          profiles={profiles}
+          tunnelStates={tunnelStates}
+          selectedId={selectedProfileId}
+          onSelect={handleSelect}
+          onNew={openNew}
+          onDisconnectAll={disconnectAll}
+        />
 
-        {/* Double-click empty title bar to maximise — handled per-panel in headers */}
-
-        {/* Sidebar — zinc-700, forced dark rendering */}
-        <div style={{
-          width: '220px', flexShrink: 0, display: 'flex', flexDirection: 'column',
-          background: '#2d2d32',
-          borderRight: '1px solid #222226',
-          colorScheme: 'light',
-        } as React.CSSProperties}>
-          <ProfileList
-            profiles={profiles} tunnelStates={tunnelStates}
-            selectedId={selectedProfileId} onSelect={handleSelect} onNew={openNew}
-          />
-        </div>
-
-        {/* Content — light, forced light rendering */}
-        <div style={{ flex: 1, overflow: 'hidden', background: '#f6f6f7', display: 'flex', flexDirection: 'column', position: 'relative', colorScheme: 'light' } as React.CSSProperties}>
+        {/* Right Content Area */}
+        <div className="flex-1 flex flex-col h-full overflow-hidden bg-zinc-50 relative">
           {loading ? (
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #d4d4d8', borderTopColor: '#10b981', animation: 'spin 0.8s linear infinite' }} />
+            <div className="flex-1 flex flex-col items-center justify-center gap-3">
+              <div className="w-8 h-8 rounded-full border-2 border-indigo-200 border-t-indigo-600 animate-spin" />
+              <p className="text-xs text-zinc-500 font-medium">Loading profiles…</p>
             </div>
           ) : view === 'form' ? (
-            <ProfileForm profile={editingProfile} onSave={handleSave} onCancel={() => setView('detail')} />
+            <ProfileForm
+              profile={editingProfile}
+              onSave={handleSave}
+              onCancel={() => setView('detail')}
+            />
           ) : selectedProfile ? (
             <ProfileDetail
-              profile={selectedProfile} state={getTunnelState(selectedProfile.id)}
+              profile={selectedProfile}
+              state={getTunnelState(selectedProfile.id)}
               onConnect={() => connect(selectedProfile.id)}
               onDisconnect={() => disconnect(selectedProfile.id)}
               onEdit={() => openEdit(selectedProfile)}
               onDelete={() => handleDelete(selectedProfile.id)}
+              onDuplicate={() => duplicateProfile(selectedProfile.id)}
             />
           ) : (
             <EmptyState onNew={openNew} />
@@ -76,40 +100,72 @@ export default function App() {
   )
 }
 
-import React from 'react'
-
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
-    <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: '-40px' }}>
-      <div style={{
-        width: 48, height: 48, borderRadius: 14,
-        background: '#ecfdf5',
-        border: '1px solid #a7f3d0',
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-      }}>
-        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#10b981" strokeWidth={1.5}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
-        </svg>
+    <div className="flex-1 flex flex-col items-center justify-center p-8 text-center max-w-xl mx-auto">
+      {/* Decorative Aura Box */}
+      <div className="relative mb-6">
+        <div className="w-20 h-20 rounded-3xl bg-linear-to-tr from-indigo-500/10 via-indigo-500/20 to-purple-500/20 border border-indigo-200/80 flex items-center justify-center shadow-md shadow-indigo-500/5">
+          <div className="w-12 h-12 rounded-2xl bg-indigo-600 flex items-center justify-center shadow-sm shadow-indigo-600/40 text-white">
+            <svg width="24" height="24" viewBox="0 0 11 13" fill="none">
+              <path
+                d="M7 0.5L1 7h4.5L4 12.5L10 6H5.5L7 0.5Z"
+                fill="currentColor"
+              />
+            </svg>
+          </div>
+        </div>
       </div>
-      <div style={{ textAlign: 'center' }}>
-        <p style={{ color: '#18181b', fontSize: 14, fontWeight: 600, margin: '0 0 5px', letterSpacing: '-0.01em' }}>
-          No profile selected
-        </p>
-        <p style={{ color: '#71717a', fontSize: 12, margin: 0, lineHeight: 1.6 }}>
-          Select a profile or create one<br />to tunnel into IBM Cloud VPC
-        </p>
+
+      <h2 className="text-xl font-bold text-zinc-900 tracking-tight">
+        No Profile Selected
+      </h2>
+      <p className="text-xs text-zinc-500 mt-2 leading-relaxed max-w-sm">
+        Select an existing bastion profile from the sidebar, or create a new profile to forward remote &amp; service ports locally.
+      </p>
+
+      <div className="mt-5">
+        <button
+          onClick={onNew}
+          className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-500 shadow-sm shadow-indigo-600/30 transition-all cursor-pointer active:scale-98"
+        >
+          <Plus className="w-4 h-4" />
+          <span>Create New Profile</span>
+        </button>
       </div>
-      <button onClick={onNew} style={{
-        background: '#10b981', color: '#fff', border: 'none', borderRadius: 8,
-        padding: '7px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-        boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
-        marginTop: 4, letterSpacing: '-0.01em',
-      }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#059669')}
-        onMouseLeave={e => (e.currentTarget.style.background = '#10b981')}
-      >
-        New Profile
-      </button>
+
+      {/* Feature highlight cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-10 text-left w-full">
+        <div className="bg-white p-3.5 rounded-xl border border-zinc-200/80 shadow-2xs">
+          <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center mb-2.5">
+            <Shield className="w-3.5 h-3.5" />
+          </div>
+          <h3 className="text-xs font-semibold text-zinc-800">Bastion Security</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5 leading-normal">
+            SSH key auth with zero exposed private endpoints.
+          </p>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-zinc-200/80 shadow-2xs">
+          <div className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center mb-2.5">
+            <Activity className="w-3.5 h-3.5" />
+          </div>
+          <h3 className="text-xs font-semibold text-zinc-800">Health Probing</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5 leading-normal">
+            Continuous 30s TCP dials confirm forwarded ports.
+          </p>
+        </div>
+
+        <div className="bg-white p-3.5 rounded-xl border border-zinc-200/80 shadow-2xs">
+          <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center mb-2.5">
+            <RefreshCw className="w-3.5 h-3.5" />
+          </div>
+          <h3 className="text-xs font-semibold text-zinc-800">Auto-Reconnect</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5 leading-normal">
+            Automatic port freeing and exponential backoff.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }
