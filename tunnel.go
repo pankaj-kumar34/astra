@@ -1,0 +1,386 @@
+package main
+
+import (
+	"bufio"
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+)
+
+// TunnelManager manages active SSH tunnel processes
+type TunnelManager struct {
+	mu      sync.RWMutex
+	tunnels map[string]*tunnelProcess
+}
+
+type tunnelProcess struct {
+	cmd        *exec.Cmd
+	state      TunnelState
+	profile    Profile
+	onUpdate   func(TunnelState)
+	stopHealth chan struct{}
+	stopRetry  chan struct{}
+	manual     bool // true = user explicitly disconnected, don't auto-reconnect
+	waitOnce   sync.Once
+	waitErr    chan error // closed after cmd.Wait() completes
+}
+
+func NewTunnelManager() *TunnelManager {
+	return &TunnelManager{
+		tunnels: make(map[string]*tunnelProcess),
+	}
+}
+
+// DisconnectAll kills every active tunnel — called on app quit.
+func (tm *TunnelManager) DisconnectAll() {
+	tm.mu.RLock()
+	ids := make([]string, 0, len(tm.tunnels))
+	for id := range tm.tunnels {
+		ids = append(ids, id)
+	}
+	tm.mu.RUnlock()
+	for _, id := range ids {
+		_ = tm.Disconnect(id)
+	}
+}
+
+func (tm *TunnelManager) GetState(profileID string) TunnelState {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	if tp, ok := tm.tunnels[profileID]; ok {
+		return tp.state
+	}
+	return TunnelState{ProfileID: profileID, Status: StatusIdle, Logs: []LogEntry{}}
+}
+
+func (tm *TunnelManager) GetAllStates() map[string]TunnelState {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	out := make(map[string]TunnelState)
+	for id, tp := range tm.tunnels {
+		out[id] = tp.state
+	}
+	return out
+}
+
+func (tm *TunnelManager) Connect(profile Profile, onUpdate func(TunnelState)) error {
+	tm.mu.Lock()
+	if tp, ok := tm.tunnels[profile.ID]; ok {
+		if tp.state.Status == StatusConnected || tp.state.Status == StatusConnecting {
+			tm.mu.Unlock()
+			return fmt.Errorf("tunnel already active")
+		}
+	}
+	tm.mu.Unlock()
+
+	// Free any stale processes still holding our local ports
+	for _, fwd := range profile.Forwards {
+		freePort(fwd.LocalPort)
+	}
+
+	return tm.startTunnel(profile, onUpdate, false)
+}
+
+func (tm *TunnelManager) startTunnel(profile Profile, onUpdate func(TunnelState), isRetry bool) error {
+	args := buildSSHArgs(profile)
+	cmd := exec.Command("ssh", args...)
+
+	now := time.Now()
+
+	tm.mu.Lock()
+	// Preserve existing logs on retry
+	var prevLogs []LogEntry
+	if isRetry {
+		if existing, ok := tm.tunnels[profile.ID]; ok {
+			prevLogs = existing.state.Logs
+		}
+	}
+
+	stopHealth := make(chan struct{})
+	stopRetry := make(chan struct{})
+	waitErr := make(chan error, 1)
+
+	tp := &tunnelProcess{
+		cmd:        cmd,
+		profile:    profile,
+		onUpdate:   onUpdate,
+		stopHealth: stopHealth,
+		stopRetry:  stopRetry,
+		manual:     false,
+		waitErr:    waitErr,
+		state: TunnelState{
+			ProfileID: profile.ID,
+			Status:    StatusConnecting,
+			StartedAt: &now,
+			Logs:      prevLogs,
+		},
+	}
+	tm.tunnels[profile.ID] = tp
+	tm.mu.Unlock()
+
+	onUpdate(tp.state)
+
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		tm.setError(profile.ID, err.Error(), onUpdate)
+		return err
+	}
+
+	if err := cmd.Start(); err != nil {
+		stderr.Close()
+		tm.setError(profile.ID, err.Error(), onUpdate)
+		return err
+	}
+	tm.mu.Lock()
+	tp.state.PID = cmd.Process.Pid
+	tm.mu.Unlock()
+
+	// Read logs — pipe is closed when SSH exits, which unblocks the scanner
+	go func() {
+		defer stderr.Close()
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			tm.appendLog(profile.ID, scanner.Text(), "info", onUpdate)
+		}
+		if err := scanner.Err(); err != nil {
+			tm.appendLog(profile.ID, "stderr read error: "+err.Error(), "error", onUpdate)
+		}
+	}()
+
+	// Mark connected after 1.5s if still connecting
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		tm.mu.Lock()
+		tp, ok := tm.tunnels[profile.ID]
+		if ok && tp.state.Status == StatusConnecting {
+			tp.state.Status = StatusConnected
+			state := tp.state
+			tm.mu.Unlock()
+			onUpdate(state)
+			// Start health pinger once connected
+			go tm.runHealthPinger(profile, stopHealth, onUpdate)
+		} else {
+			tm.mu.Unlock()
+		}
+	}()
+
+	// Single owner of cmd.Wait() — result sent to waitErr channel
+	go func() {
+		waitErr <- cmd.Wait()
+		close(waitErr)
+	}()
+
+	// Watch for process exit → auto-reconnect
+	go func() {
+		err := <-waitErr
+
+		// Stop health pinger
+		select {
+		case <-stopHealth:
+		default:
+			close(stopHealth)
+		}
+
+		tm.mu.Lock()
+		tp, ok := tm.tunnels[profile.ID]
+		if !ok {
+			tm.mu.Unlock()
+			return
+		}
+		wasManual := tp.manual
+		if wasManual {
+			tp.state.Status = StatusIdle
+			tp.state.PID = 0
+			state := tp.state
+			tm.mu.Unlock()
+			onUpdate(state)
+			return
+		}
+		// Unexpected exit
+		errMsg := ""
+		if err != nil {
+			errMsg = err.Error()
+		}
+		tp.state.Status = StatusError
+		tp.state.Error = errMsg
+		tp.state.PID = 0
+		state := tp.state
+		tm.mu.Unlock()
+		onUpdate(state)
+
+		// Auto-reconnect with back-off: 5s, 15s, 30s
+		go tm.autoReconnect(profile, onUpdate, stopRetry)
+	}()
+
+	return nil
+}
+
+// autoReconnect tries up to 3 times with back-off delays
+func (tm *TunnelManager) autoReconnect(profile Profile, onUpdate func(TunnelState), stop chan struct{}) {
+	delays := []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second}
+	for attempt, delay := range delays {
+		tm.appendLog(profile.ID, fmt.Sprintf("Auto-reconnect attempt %d/3 in %s…", attempt+1, delay), "warn", onUpdate)
+
+		select {
+		case <-stop:
+			return
+		case <-time.After(delay):
+		}
+
+		// Check if user manually disconnected in the meantime
+		tm.mu.RLock()
+		tp, ok := tm.tunnels[profile.ID]
+		if ok && tp.manual {
+			tm.mu.RUnlock()
+			return
+		}
+		tm.mu.RUnlock()
+
+		tm.appendLog(profile.ID, fmt.Sprintf("Reconnecting… (attempt %d/3)", attempt+1), "info", onUpdate)
+		err := tm.startTunnel(profile, onUpdate, true)
+		if err == nil {
+			return // success
+		}
+		tm.appendLog(profile.ID, fmt.Sprintf("Reconnect attempt %d failed: %s", attempt+1, err), "error", onUpdate)
+	}
+	tm.appendLog(profile.ID, "Auto-reconnect exhausted — giving up", "error", onUpdate)
+}
+
+// runHealthPinger dials each forwarded port every 30s and emits health updates
+func (tm *TunnelManager) runHealthPinger(profile Profile, stop chan struct{}, onUpdate func(TunnelState)) {
+	if len(profile.Forwards) == 0 {
+		return
+	}
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-stop:
+			return
+		case <-ticker.C:
+			allOK := true
+			for _, fwd := range profile.Forwards {
+				addr := fmt.Sprintf("127.0.0.1:%d", fwd.LocalPort)
+				conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+				if err != nil {
+					allOK = false
+					tm.appendLog(profile.ID, fmt.Sprintf("Health: port %d unreachable", fwd.LocalPort), "warn", onUpdate)
+				} else {
+					conn.Close()
+				}
+			}
+			if allOK {
+				tm.appendLog(profile.ID, "Health: all ports reachable ✓", "info", onUpdate)
+			}
+		}
+	}
+}
+
+func (tm *TunnelManager) Disconnect(profileID string) error {
+	tm.mu.Lock()
+	tp, ok := tm.tunnels[profileID]
+	if !ok {
+		tm.mu.Unlock()
+		return fmt.Errorf("no active tunnel for profile %s", profileID)
+	}
+	tp.manual = true
+	// Stop auto-reconnect goroutine
+	select {
+	case <-tp.stopRetry:
+	default:
+		close(tp.stopRetry)
+	}
+	// Stop health pinger
+	select {
+	case <-tp.stopHealth:
+	default:
+		close(tp.stopHealth)
+	}
+	cmd := tp.cmd
+	waitErr := tp.waitErr
+	tp.state.Status = StatusIdle
+	tp.state.PID = 0
+	tm.mu.Unlock()
+
+	// Kill the process and wait for it to fully exit so the OS releases port bindings.
+	// waitErr is owned by the single Wait goroutine — we just drain it here.
+	if cmd.Process != nil {
+		_ = cmd.Process.Kill()
+		<-waitErr // blocks until kernel cleans up; port is free after this
+	}
+	return nil
+}
+
+func buildSSHArgs(profile Profile) []string {
+	args := []string{
+		"-N",
+		"-o", "ServerAliveInterval=30",
+		"-o", "ServerAliveCountMax=3",
+		"-o", "StrictHostKeyChecking=no",
+		"-o", "BatchMode=yes",
+		"-i", profile.KeyPath,
+		"-p", fmt.Sprintf("%d", profile.Port),
+	}
+	for _, fwd := range profile.Forwards {
+		args = append(args, "-L",
+			fmt.Sprintf("%d:%s:%d", fwd.LocalPort, fwd.RemoteHost, fwd.RemotePort),
+		)
+	}
+	args = append(args, fmt.Sprintf("%s@%s", profile.User, profile.Host))
+	return args
+}
+
+// freePort kills any process holding the given TCP port on localhost.
+// Uses lsof to find the PID and sends SIGKILL.
+func freePort(port int) {
+	out, err := exec.Command("lsof", "-ti", fmt.Sprintf("tcp:%d", port)).Output()
+	if err != nil || len(strings.TrimSpace(string(out))) == 0 {
+		return
+	}
+	for _, pidStr := range strings.Fields(string(out)) {
+		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
+		if err != nil {
+			continue
+		}
+		if p, err := os.FindProcess(pid); err == nil {
+			_ = p.Kill()
+		}
+	}
+	time.Sleep(200 * time.Millisecond) // give kernel time to release the port
+}
+
+func (tm *TunnelManager) setError(profileID, errMsg string, onUpdate func(TunnelState)) {
+	tm.mu.Lock()
+	tp, ok := tm.tunnels[profileID]
+	if ok {
+		tp.state.Status = StatusError
+		tp.state.Error = errMsg
+		state := tp.state
+		tm.mu.Unlock()
+		onUpdate(state)
+	} else {
+		tm.mu.Unlock()
+	}
+}
+
+func (tm *TunnelManager) appendLog(profileID, line, level string, onUpdate func(TunnelState)) {
+	tm.mu.Lock()
+	tp, ok := tm.tunnels[profileID]
+	if !ok {
+		tm.mu.Unlock()
+		return
+	}
+	entry := LogEntry{Timestamp: time.Now(), Line: line, Level: level}
+	tp.state.Logs = append(tp.state.Logs, entry)
+	if len(tp.state.Logs) > 500 {
+		tp.state.Logs = tp.state.Logs[len(tp.state.Logs)-500:]
+	}
+	state := tp.state
+	tm.mu.Unlock()
+	onUpdate(state)
+}
