@@ -152,20 +152,60 @@ func (tm *TunnelManager) startTunnel(profile Profile, onUpdate func(TunnelState)
 		}
 	}()
 
-	// Mark connected after 1.5s if still connecting
+	// Mark connected only after confirming ports are reachable.
+	// Polls each forwarded local port (up to 30s). If no forwards, waits
+	// 10s for the SSH handshake to complete before assuming connected.
 	go func() {
-		time.Sleep(1500 * time.Millisecond)
-		tm.mu.Lock()
-		tp, ok := tm.tunnels[profile.ID]
-		if ok && tp.state.Status == StatusConnecting {
-			tp.state.Status = StatusConnected
-			state := tp.state
-			tm.mu.Unlock()
-			onUpdate(state)
-			// Start health pinger once connected
-			go tm.runHealthPinger(profile, stopHealth, onUpdate)
-		} else {
-			tm.mu.Unlock()
+		const pollInterval = 500 * time.Millisecond
+		const timeout = 30 * time.Second
+		deadline := time.Now().Add(timeout)
+
+		confirm := func() bool {
+			if len(profile.Forwards) == 0 {
+				// No ports to dial — wait 10s for the handshake
+				time.Sleep(10 * time.Second)
+				return true
+			}
+			for time.Now().Before(deadline) {
+				// Check if process died or user disconnected
+				tm.mu.RLock()
+				tp, ok := tm.tunnels[profile.ID]
+				if !ok || tp.state.Status != StatusConnecting {
+					tm.mu.RUnlock()
+					return false
+				}
+				tm.mu.RUnlock()
+
+				// Try all ports — all must be reachable
+				allOK := true
+				for _, fwd := range profile.Forwards {
+					conn, err := net.DialTimeout("tcp", fmt.Sprintf("127.0.0.1:%d", fwd.LocalPort), 1*time.Second)
+					if err != nil {
+						allOK = false
+					} else {
+						conn.Close()
+					}
+				}
+				if allOK {
+					return true
+				}
+				time.Sleep(pollInterval)
+			}
+			return false // timed out
+		}
+
+		if confirm() {
+			tm.mu.Lock()
+			tp, ok := tm.tunnels[profile.ID]
+			if ok && tp.state.Status == StatusConnecting {
+				tp.state.Status = StatusConnected
+				state := tp.state
+				tm.mu.Unlock()
+				onUpdate(state)
+				go tm.runHealthPinger(profile, stopHealth, onUpdate)
+			} else {
+				tm.mu.Unlock()
+			}
 		}
 	}()
 
