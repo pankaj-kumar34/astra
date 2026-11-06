@@ -59,7 +59,7 @@ export function ProfileDetail({
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, [isConnected]);
-  const isActive = isConnected || isConnecting;
+  const isActive = isConnected || isConnecting || isError;
 
   return (
     <div
@@ -220,7 +220,6 @@ export function ProfileDetail({
           </div>
           <button
             onClick={isActive ? onDisconnect : onConnect}
-            disabled={isConnecting}
             style={{
               height: 32,
               padding: "0 16px",
@@ -228,26 +227,20 @@ export function ProfileDetail({
               border: "none",
               fontSize: 12,
               fontWeight: 600,
-              cursor: isConnecting ? "not-allowed" : "pointer",
+              cursor: "pointer",
               background: isActive ? "#e4e4e7" : "#10b981",
               color: isActive ? "#3f3f46" : "#fff",
               boxShadow: isActive ? "none" : "0 2px 8px rgba(16,185,129,0.3)",
-              opacity: isConnecting ? 0.7 : 1,
               transition: "background 0.15s",
             }}
             onMouseEnter={(e) => {
-              if (!isConnecting)
-                e.currentTarget.style.background = isActive
-                  ? "#d4d4d8"
-                  : "#059669";
+              e.currentTarget.style.background = isActive ? "#d4d4d8" : "#059669";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = isActive
-                ? "#e4e4e7"
-                : "#10b981";
+              e.currentTarget.style.background = isActive ? "#e4e4e7" : "#10b981";
             }}
           >
-            {isConnecting ? "Connecting…" : isActive ? "Disconnect" : "Connect"}
+            {isActive ? "Disconnect" : "Connect"}
           </button>
         </div>
 
