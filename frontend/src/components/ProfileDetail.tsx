@@ -596,6 +596,7 @@ function connectHint(service: string, localPort: number): string | null {
     case "postgres":
       return `psql -h localhost -p ${localPort}`;
     case "redis":
+    case "valkey":
       return `redis-cli -h localhost -p ${localPort}`;
     case "elasticsearch":
       return `curl http://localhost:${localPort}`;
