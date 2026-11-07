@@ -68,6 +68,7 @@ func main() {
 
 	// Auto-connect profiles flagged for auto-connect
 	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(e *application.ApplicationEvent) {
+		InitNotifications()
 		svc.AutoConnectAll()
 	})
 
