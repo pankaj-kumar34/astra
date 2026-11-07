@@ -638,14 +638,14 @@ function OverviewTab({
 function connectHint(service: string, localPort: number): string | null {
   switch (service) {
     case "postgres":
-      return `psql -h localhost -p ${localPort}`;
+      return `psql -h 127.0.0.1 -p ${localPort}`;
     case "redis":
     case "valkey":
-      return `redis-cli -h localhost -p ${localPort}`;
+      return `redis-cli -h 127.0.0.1 -p ${localPort}`;
     case "elasticsearch":
-      return `curl http://localhost:${localPort}`;
+      return `curl http://127.0.0.1:${localPort}`;
     case "eventstreams":
-      return `localhost:${localPort} (Kafka)`;
+      return `127.0.0.1:${localPort} (Kafka)`;
     default:
       return null;
   }
