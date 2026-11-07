@@ -175,6 +175,17 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
               <LLabel>Description <span style={{ color: '#d4d4d8' }}>(optional)</span></LLabel>
               <LInput value={form.description} onChange={v => set('description', v)} placeholder="What is this for?" />
             </div>
+            <div style={{ gridColumn: '1 / -1' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  checked={form.autoConnect ?? false}
+                  onChange={e => set('autoConnect', e.target.checked)}
+                  style={{ width: 14, height: 14, accentColor: '#10b981', cursor: 'pointer' }}
+                />
+                <span style={{ fontSize: 12, color: '#52525b', fontWeight: 500 }}>Auto-connect on launch</span>
+              </label>
+            </div>
             <div style={{ height: 1, background: '#f4f4f5', gridColumn: '1 / -1', margin: '2px 0' }} />
             <div style={{ gridColumn: '1 / -1', display: 'grid', gridTemplateColumns: '1fr 80px', gap: 10 }}>
               <div>

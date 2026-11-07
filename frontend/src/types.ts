@@ -22,6 +22,7 @@ export function emptyProfile(): Profile {
     keyPath: '~/.ssh/id_rsa',
     description: '',
     forwards: [],
+    autoConnect: false,
     createdAt: '',
     updatedAt: '',
   }

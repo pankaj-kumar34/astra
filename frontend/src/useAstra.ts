@@ -9,7 +9,6 @@ export function useAstra() {
   const [selectedProfileId, setSelectedProfileId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Keep ref for latest states to avoid stale closures
   const statesRef = useRef(tunnelStates)
   statesRef.current = tunnelStates
 
@@ -28,23 +27,17 @@ export function useAstra() {
 
   useEffect(() => {
     refresh()
-
-    // Listen for tunnel state updates
     const unsub = Events.On('tunnel:state', (event: any) => {
       const state: TunnelState = event.data?.[0] ?? event.data ?? event
       if (state?.profileId) {
         setTunnelStates(prev => ({ ...prev, [state.profileId]: state }))
       }
     })
-
-    return () => {
-      if (typeof unsub === 'function') unsub()
-    }
+    return () => { if (typeof unsub === 'function') unsub() }
   }, [refresh])
 
-  const getTunnelState = (profileId: string): TunnelState => {
-    return tunnelStates[profileId] ?? idleState(profileId)
-  }
+  const getTunnelState = (profileId: string): TunnelState =>
+    tunnelStates[profileId] ?? idleState(profileId)
 
   const saveProfile = async (profile: Profile): Promise<Profile> => {
     try {
@@ -61,6 +54,12 @@ export function useAstra() {
     await AstraService.DeleteProfile(id)
     if (selectedProfileId === id) setSelectedProfileId(null)
     await refresh()
+  }
+
+  const duplicateProfile = async (id: string) => {
+    const dup = await AstraService.DuplicateProfile(id)
+    await refresh()
+    setSelectedProfileId(dup.id)
   }
 
   const connect = async (profileId: string) => {
@@ -85,17 +84,8 @@ export function useAstra() {
   const selectedProfile = profiles.find(p => p.id === selectedProfileId) ?? null
 
   return {
-    profiles,
-    tunnelStates,
-    selectedProfileId,
-    selectedProfile,
-    loading,
-    setSelectedProfileId,
-    getTunnelState,
-    saveProfile,
-    deleteProfile,
-    connect,
-    disconnect,
-    refresh,
+    profiles, tunnelStates, selectedProfileId, selectedProfile, loading,
+    setSelectedProfileId, getTunnelState, saveProfile, deleteProfile, duplicateProfile,
+    connect, disconnect, refresh,
   }
 }

@@ -26,6 +26,24 @@ func (s *AstraService) emit(name string, data any) {
 	}
 }
 
+// AutoConnectAll connects all profiles with AutoConnect=true. Called on launch.
+func (s *AstraService) AutoConnectAll() {
+	data, err := loadData()
+	if err != nil {
+		return
+	}
+	for _, p := range data.Profiles {
+		if p.AutoConnect {
+			cp := p
+			go func(profile Profile) {
+				_ = s.manager.Connect(profile, func(state TunnelState) {
+					s.emit("tunnel:state", state)
+				})
+			}(cp)
+		}
+	}
+}
+
 // ── Profiles ────────────────────────────────────────────────────────────────
 
 func (s *AstraService) GetProfiles() ([]Profile, error) {
@@ -97,6 +115,36 @@ func (s *AstraService) DeleteProfile(id string) error {
 	}
 	data.Profiles = profiles
 	return saveData(data)
+}
+
+func (s *AstraService) DuplicateProfile(id string) (Profile, error) {
+	data, err := loadData()
+	if err != nil {
+		return Profile{}, err
+	}
+	var src *Profile
+	for _, p := range data.Profiles {
+		if p.ID == id {
+			cp := p
+			src = &cp
+			break
+		}
+	}
+	if src == nil {
+		return Profile{}, fmt.Errorf("profile not found: %s", id)
+	}
+	now := time.Now().UTC().Format(time.RFC3339)
+	dup := *src
+	dup.ID = newID()
+	dup.Name = src.Name + " (copy)"
+	dup.AutoConnect = false
+	dup.CreatedAt = now
+	dup.UpdatedAt = now
+	for i := range dup.Forwards {
+		dup.Forwards[i].ID = newID()
+	}
+	data.Profiles = append(data.Profiles, dup)
+	return dup, saveData(data)
 }
 
 // ── Tunnels ─────────────────────────────────────────────────────────────────

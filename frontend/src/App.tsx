@@ -11,7 +11,7 @@ type View = 'detail' | 'form'
 export default function App() {
   const {
     profiles, tunnelStates, selectedProfileId, selectedProfile, loading,
-    setSelectedProfileId, getTunnelState, saveProfile, deleteProfile, connect, disconnect,
+    setSelectedProfileId, getTunnelState, saveProfile, deleteProfile, duplicateProfile, connect, disconnect,
   } = useAstra()
 
   const [view, setView] = useState<View>('detail')
@@ -66,6 +66,7 @@ export default function App() {
               onDisconnect={() => disconnect(selectedProfile.id)}
               onEdit={() => openEdit(selectedProfile)}
               onDelete={() => handleDelete(selectedProfile.id)}
+              onDuplicate={() => duplicateProfile(selectedProfile.id)}
             />
           ) : (
             <EmptyState onNew={openNew} />

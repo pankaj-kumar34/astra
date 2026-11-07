@@ -34,6 +34,7 @@ type Profile struct {
 	KeyPath     string        `json:"keyPath"`
 	Description string        `json:"description"`
 	Forwards    []PortForward `json:"forwards"`
+	AutoConnect bool          `json:"autoConnect"`
 	CreatedAt   string        `json:"createdAt,omitempty"`
 	UpdatedAt   string        `json:"updatedAt,omitempty"`
 }

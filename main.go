@@ -66,6 +66,11 @@ func main() {
 		win.Focus()
 	})
 
+	// Auto-connect profiles flagged for auto-connect
+	app.Event.OnApplicationEvent(events.Common.ApplicationStarted, func(e *application.ApplicationEvent) {
+		svc.AutoConnectAll()
+	})
+
 	if err := app.Run(); err != nil {
 		log.Fatal(err)
 	}

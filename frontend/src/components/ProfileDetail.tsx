@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { cn } from "@/lib/utils";
 import {
   Profile,
@@ -19,6 +19,9 @@ import {
   Terminal,
   Pencil,
   Trash2,
+  Copy,
+  Check,
+  CopyPlus,
 } from "lucide-react";
 
 interface Props {
@@ -28,6 +31,7 @@ interface Props {
   onDisconnect: () => void;
   onEdit: () => void;
   onDelete: () => void;
+  onDuplicate: () => void;
 }
 
 function formatUptime(startedAt: string | null): string {
@@ -47,19 +51,25 @@ export function ProfileDetail({
   onDisconnect,
   onEdit,
   onDelete,
+  onDuplicate,
 }: Props) {
   const [activeTab, setActiveTab] = useState<"overview" | "logs">("overview");
   const [, setTick] = useState(0);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const isConnected = state.status === TunnelStatus.StatusConnected;
   const isConnecting = state.status === TunnelStatus.StatusConnecting;
   const isError = state.status === TunnelStatus.StatusError;
+  const isActive = isConnected || isConnecting || isError;
 
+  // Tick every second when active (for uptime display)
   useEffect(() => {
-    if (!isConnected) return;
+    if (!isActive) return;
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
-  }, [isConnected]);
-  const isActive = isConnected || isConnecting || isError;
+  }, [isActive]);
+
+  // Reset delete confirmation when profile changes
+  useEffect(() => { setConfirmDelete(false) }, [profile.id]);
 
   return (
     <div
@@ -133,51 +143,74 @@ export function ProfileDetail({
 
           <div style={{ display: "flex", gap: 6 }}>
             <button
-              onClick={onEdit}
+              onClick={onDuplicate}
+              title="Duplicate profile"
               style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: "#f4f4f5",
-                border: "1px solid #e4e4e7",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
+                width: 32, height: 32, borderRadius: 8,
+                background: "#f4f4f5", border: "1px solid #e4e4e7",
+                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.background = "#e4e4e7")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.background = "#f4f4f5")
-              }
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#e4e4e7")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#f4f4f5")}
+            >
+              <CopyPlus style={{ width: 13, height: 13, color: "#71717a" }} />
+            </button>
+            <button
+              onClick={onEdit}
+              title="Edit profile"
+              style={{
+                width: 32, height: 32, borderRadius: 8,
+                background: "#f4f4f5", border: "1px solid #e4e4e7",
+                display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.background = "#e4e4e7")}
+              onMouseLeave={(e) => (e.currentTarget.style.background = "#f4f4f5")}
             >
               <Pencil style={{ width: 13, height: 13, color: "#71717a" }} />
             </button>
-            <button
-              onClick={onDelete}
-              style={{
-                width: 32,
-                height: 32,
-                borderRadius: 8,
-                background: "#f4f4f5",
-                border: "1px solid #e4e4e7",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                cursor: "pointer",
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = "#fef2f2";
-                e.currentTarget.style.borderColor = "#fca5a5";
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = "#f4f4f5";
-                e.currentTarget.style.borderColor = "#e4e4e7";
-              }}
-            >
-              <Trash2 style={{ width: 13, height: 13, color: "#71717a" }} />
-            </button>
+            {confirmDelete ? (
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <button
+                  onClick={onDelete}
+                  style={{
+                    height: 32, padding: "0 10px", borderRadius: 8, border: "none",
+                    background: "#ef4444", color: "#fff", fontSize: 11, fontWeight: 600, cursor: "pointer",
+                  }}
+                >
+                  Delete
+                </button>
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  style={{
+                    height: 32, padding: "0 10px", borderRadius: 8,
+                    background: "#f4f4f5", border: "1px solid #e4e4e7",
+                    fontSize: 11, color: "#71717a", cursor: "pointer",
+                  }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                title="Delete profile"
+                style={{
+                  width: 32, height: 32, borderRadius: 8,
+                  background: "#f4f4f5", border: "1px solid #e4e4e7",
+                  display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer",
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = "#fef2f2";
+                  e.currentTarget.style.borderColor = "#fca5a5";
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = "#f4f4f5";
+                  e.currentTarget.style.borderColor = "#e4e4e7";
+                }}
+              >
+                <Trash2 style={{ width: 13, height: 13, color: "#71717a" }} />
+              </button>
+            )}
           </div>
         </div>
 
@@ -192,28 +225,14 @@ export function ProfileDetail({
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
             <StatusBadge status={state.status} dark={false} />
-            {isConnected && state.startedAt && (
-              <span
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  fontSize: 12,
-                  color: "#71717a",
-                }}
-              >
+            {(isConnected || isConnecting) && state.startedAt && (
+              <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#71717a" }}>
                 <Clock style={{ width: 11, height: 11 }} />
                 {formatUptime(state.startedAt)}
               </span>
             )}
             {isConnected && state.pid > 0 && (
-              <span
-                style={{
-                  fontSize: 11,
-                  color: "#a1a1aa",
-                  fontFamily: "monospace",
-                }}
-              >
+              <span style={{ fontSize: 11, color: "#a1a1aa", fontFamily: "monospace" }}>
                 PID {state.pid}
               </span>
             )}
@@ -346,6 +365,32 @@ export function ProfileDetail({
         )}
       </div>
     </div>
+  );
+}
+
+function CopyButton({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <button
+      onClick={() => {
+        navigator.clipboard.writeText(text);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      }}
+      title="Copy connection string"
+      style={{
+        background: "none", border: "none", cursor: "pointer", padding: 3,
+        borderRadius: 4, display: "flex", alignItems: "center", color: copied ? "#10b981" : "#a1a1aa",
+        flexShrink: 0,
+      }}
+      onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "#52525b" }}
+      onMouseLeave={(e) => { if (!copied) e.currentTarget.style.color = "#a1a1aa" }}
+    >
+      {copied
+        ? <Check style={{ width: 12, height: 12 }} />
+        : <Copy style={{ width: 12, height: 12 }} />
+      }
+    </button>
   );
 }
 
@@ -567,29 +612,19 @@ function OverviewTab({
                 <div
                   key={fwd.id}
                   style={{
-                    background: "#18181b",
-                    borderRadius: 8,
-                    padding: "8px 12px",
+                    background: "#18181b", borderRadius: 8, padding: "8px 12px",
+                    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
                   }}
                 >
-                  <p
-                    style={{
-                      fontSize: 10,
-                      color: "#71717a",
-                      margin: "0 0 3px",
-                    }}
-                  >
-                    {fwd.label || SERVICE_PRESETS[fwd.service]?.label}
-                  </p>
-                  <code
-                    style={{
-                      fontSize: 12,
-                      color: "#34d399",
-                      fontFamily: "monospace",
-                    }}
-                  >
-                    {hint}
-                  </code>
+                  <div>
+                    <p style={{ fontSize: 10, color: "#71717a", margin: "0 0 3px" }}>
+                      {fwd.label || SERVICE_PRESETS[fwd.service]?.label}
+                    </p>
+                    <code style={{ fontSize: 12, color: "#34d399", fontFamily: "monospace" }}>
+                      {hint}
+                    </code>
+                  </div>
+                  <CopyButton text={hint} />
                 </div>
               ) : null;
             })}
@@ -617,18 +652,15 @@ function connectHint(service: string, localPort: number): string | null {
 }
 
 function LogViewer({ logs }: { logs: LogEntry[] }) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [logs.length]);
+
   if (logs.length === 0) {
     return (
-      <div
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          gap: 8,
-        }}
-      >
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 8 }}>
         <Terminal style={{ width: 28, height: 28, color: "#d4d4d8" }} />
         <p style={{ fontSize: 12, color: "#a1a1aa", margin: 0 }}>No logs yet</p>
       </div>
@@ -636,32 +668,18 @@ function LogViewer({ logs }: { logs: LogEntry[] }) {
   }
   return (
     <ScrollArea className="h-full">
-      <div
-        style={{
-          background: "#18181b",
-          borderRadius: 10,
-          padding: "10px 14px",
-          fontFamily: "monospace",
-        }}
-      >
+      <div style={{ background: "#18181b", borderRadius: 10, padding: "10px 14px", fontFamily: "monospace" }}>
         {logs.map((entry, i) => (
-          <div
-            key={i}
-            style={{ display: "flex", gap: 10, padding: "2px 0", fontSize: 11 }}
-          >
+          <div key={i} style={{ display: "flex", gap: 10, padding: "2px 0", fontSize: 11 }}>
             <span style={{ color: "#52525b", flexShrink: 0 }}>
               {new Date(entry.timestamp).toLocaleTimeString()}
             </span>
-            <span
-              style={{
-                color: entry.level === "error" ? "#f87171" : "#a1a1aa",
-                wordBreak: "break-all",
-              }}
-            >
+            <span style={{ color: entry.level === "error" ? "#f87171" : entry.level === "warn" ? "#fbbf24" : "#a1a1aa", wordBreak: "break-all" }}>
               {entry.line}
             </span>
           </div>
         ))}
+        <div ref={bottomRef} />
       </div>
     </ScrollArea>
   );
