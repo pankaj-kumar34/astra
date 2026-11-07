@@ -134,7 +134,7 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
       <div
        
         style={{
-          padding: '52px 28px 16px', background: '#fff',
+          padding: '16px 28px 16px', background: '#fff',
           borderBottom: '1px solid #e4e4e7',
           display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between',
           position: 'relative', zIndex: 2,

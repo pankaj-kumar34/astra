@@ -84,7 +84,7 @@ export function ProfileDetail({
       <div
        
         style={{
-          padding: "52px 28px 16px",
+          padding: "16px 28px 16px",
           borderBottom: "1px solid #e4e4e7",
           background: "#fff",
           position: "relative",

@@ -39,11 +39,9 @@ func main() {
 		MinWidth:  900,
 		MinHeight: 600,
 		Mac: application.MacWindow{
-			InvisibleTitleBarHeight: 52,
-			Backdrop:                application.MacBackdropNormal,
-			TitleBar:                application.MacTitleBarHiddenInset,
-			Appearance:              application.NSAppearanceNameAqua,
-			// Disable fullscreen so green button maximises instead of going fullscreen
+			Backdrop:   application.MacBackdropNormal,
+			TitleBar:   application.MacTitleBarDefault,
+			Appearance: application.NSAppearanceNameAqua,
 			CollectionBehavior: application.MacWindowCollectionBehaviorManaged |
 				application.MacWindowCollectionBehaviorFullScreenNone,
 		},

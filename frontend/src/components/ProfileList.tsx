@@ -2,7 +2,6 @@ import { Profile, TunnelState, TunnelStatus, SERVICE_PRESETS } from '@/types'
 import { StatusBadge } from './StatusBadge'
 import { cn } from '@/lib/utils'
 import { Zap, Plus } from 'lucide-react'
-import { Window } from '@wailsio/runtime'
 
 interface Props {
   profiles: Profile[]
@@ -21,11 +20,10 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
 
-      {/* Header / drag region */}
+      {/* Header */}
       <div
        
-        style={{ padding: '52px 14px 14px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}
-        onDoubleClick={() => Window.ToggleMaximise()}
+        style={{ padding: '14px 14px 14px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
