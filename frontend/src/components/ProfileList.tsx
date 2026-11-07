@@ -23,7 +23,7 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
       {/* Header */}
       <div
        
-        style={{ padding: '14px 14px 14px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}
+        style={{ padding: '14px 14px 14px' }}
       >
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
@@ -140,7 +140,7 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
       </div>
 
       {/* Footer */}
-      <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
+      <div style={{ padding: '10px 14px' }} />
     </div>
   )
 }
