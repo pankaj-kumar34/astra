@@ -142,11 +142,7 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
       </div>
 
       {/* Footer */}
-      <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
-        <span style={{ fontSize: 9, fontWeight: 600, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: 'rgba(255,255,255,0.45)' }}>
-          IBM Cloud VPC
-        </span>
-      </div>
+      <div style={{ padding: '10px 14px', borderTop: '1px solid rgba(255,255,255,0.1)' }} />
     </div>
   )
 }
