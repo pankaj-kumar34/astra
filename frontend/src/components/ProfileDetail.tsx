@@ -224,7 +224,12 @@ export function ProfileDetail({
           }}
         >
           <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
-            <StatusBadge status={state.status} dark={false} />
+            <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+              <StatusBadge status={state.status} dark={false} />
+              <span style={{ fontSize: 12, fontWeight: 500, color: isConnected ? "#7C6FE0" : isError ? "#ef4444" : isConnecting ? "#8b5cf6" : "#a1a1aa" }}>
+                {isConnected ? "Connected" : isConnecting ? "Connecting" : isError ? "Error" : "Idle"}
+              </span>
+            </div>
             {(isConnected || isConnecting) && state.startedAt && (
               <span style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 12, color: "#71717a" }}>
                 <Clock style={{ width: 11, height: 11 }} />

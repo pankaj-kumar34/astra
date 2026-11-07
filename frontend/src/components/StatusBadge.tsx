@@ -29,9 +29,8 @@ export function StatusBadge({ status, size = 'md', dark = true }: Props) {
   const config = dark ? darkConfig : lightConfig
   const c = config[status] ?? config[TunnelStatus.StatusIdle]
   return (
-    <span className={cn('flex items-center gap-1.5', size === 'sm' ? 'text-xs' : 'text-sm')}>
+    <span className={cn('flex items-center', size === 'sm' ? 'text-xs' : 'text-sm')}>
       <span className={cn('rounded-full flex-shrink-0', c.dot, size === 'sm' ? 'h-1.5 w-1.5' : 'h-2 w-2')} />
-      <span className={c.text}>{c.label}</span>
     </span>
   )
 }
