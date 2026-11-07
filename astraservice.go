@@ -178,12 +178,26 @@ func (s *AstraService) Connect(profileID string) error {
 }
 
 func (s *AstraService) Disconnect(profileID string) error {
+	// Look up profile name for the notification
+	var profileName string
+	if data, err := loadData(); err == nil {
+		for _, p := range data.Profiles {
+			if p.ID == profileID {
+				profileName = p.Name
+				break
+			}
+		}
+	}
+
 	err := s.manager.Disconnect(profileID)
 	if err != nil {
 		return err
 	}
 	state := s.manager.GetState(profileID)
 	s.emit("tunnel:state", state)
+	if profileName != "" {
+		notify("Astra", profileName, "Tunnel disconnected")
+	}
 	return nil
 }
 
