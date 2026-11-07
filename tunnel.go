@@ -261,7 +261,8 @@ func (tm *TunnelManager) startTunnel(profile Profile, onUpdate func(TunnelState)
 	return nil
 }
 
-// autoReconnect tries up to 3 times with back-off delays
+// autoReconnect tries up to 3 times with back-off delays, then falls back to
+// a slow background poller (every 60s) until the connection succeeds.
 func (tm *TunnelManager) autoReconnect(profile Profile, onUpdate func(TunnelState), stop chan struct{}) {
 	delays := []time.Duration{5 * time.Second, 15 * time.Second, 30 * time.Second}
 	for attempt, delay := range delays {
@@ -273,7 +274,6 @@ func (tm *TunnelManager) autoReconnect(profile Profile, onUpdate func(TunnelStat
 		case <-time.After(delay):
 		}
 
-		// Check if user manually disconnected in the meantime
 		tm.mu.RLock()
 		tp, ok := tm.tunnels[profile.ID]
 		if ok && tp.manual {
@@ -289,7 +289,31 @@ func (tm *TunnelManager) autoReconnect(profile Profile, onUpdate func(TunnelStat
 		}
 		tm.appendLog(profile.ID, fmt.Sprintf("Reconnect attempt %d failed: %s", attempt+1, err), "error", onUpdate)
 	}
-	tm.appendLog(profile.ID, "Auto-reconnect exhausted — giving up", "error", onUpdate)
+
+	tm.appendLog(profile.ID, "Auto-reconnect exhausted — polling every 60s until network recovers…", "warn", onUpdate)
+
+	// Slow poller — retry every 60s indefinitely until success or manual disconnect
+	for {
+		select {
+		case <-stop:
+			return
+		case <-time.After(60 * time.Second):
+		}
+
+		tm.mu.RLock()
+		tp, ok := tm.tunnels[profile.ID]
+		if ok && tp.manual {
+			tm.mu.RUnlock()
+			return
+		}
+		tm.mu.RUnlock()
+
+		tm.appendLog(profile.ID, "Polling reconnect…", "info", onUpdate)
+		err := tm.startTunnel(profile, onUpdate, true)
+		if err == nil {
+			return // success — handleNotification will fire "Tunnel reconnected"
+		}
+	}
 }
 
 // runHealthPinger dials each forwarded port every 30s and emits per-port health updates
@@ -387,7 +411,7 @@ func (tm *TunnelManager) Disconnect(profileID string) error {
 func buildSSHArgs(profile Profile) []string {
 	args := []string{
 		"-N",
-		"-o", "ServerAliveInterval=30",
+		"-o", "ServerAliveInterval=10",
 		"-o", "ServerAliveCountMax=3",
 		"-o", "StrictHostKeyChecking=no",
 		"-o", "BatchMode=yes",

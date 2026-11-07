@@ -205,14 +205,18 @@ func (s *AstraService) Disconnect(profileID string) error {
 func (s *AstraService) handleNotification(profile Profile, state TunnelState) {
 	switch state.Status {
 	case StatusConnected:
-		notify("Astra", profile.Name, "Tunnel connected ✓")
-	case StatusError:
-		// Only notify when auto-reconnect is exhausted, not on every retry
-		if len(state.Logs) > 0 {
-			last := state.Logs[len(state.Logs)-1].Line
-			if last == "Auto-reconnect exhausted — giving up" {
-				notify("Astra", profile.Name, "Tunnel lost — reconnect failed")
+		// Check if this is a reconnect (logs will have prior error entries)
+		wasError := false
+		for _, l := range state.Logs {
+			if l.Level == "error" {
+				wasError = true
+				break
 			}
+		}
+		if wasError {
+			notify("Astra", profile.Name, "Tunnel reconnected ✓")
+		} else {
+			notify("Astra", profile.Name, "Tunnel connected ✓")
 		}
 	}
 }
