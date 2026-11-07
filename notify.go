@@ -8,35 +8,35 @@ package main
 #import <UserNotifications/UserNotifications.h>
 
 void sendNotification(const char *title, const char *subtitle, const char *body) {
-    @autoreleasepool {
-        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+    // Copy strings before async dispatch
+    NSString *nsTitle    = [NSString stringWithUTF8String:title];
+    NSString *nsSubtitle = (subtitle && strlen(subtitle) > 0) ? [NSString stringWithUTF8String:subtitle] : nil;
+    NSString *nsBody     = [NSString stringWithUTF8String:body];
 
-        // Request permission (no-op if already granted/denied)
-        [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
-            completionHandler:^(BOOL granted, NSError *error) {
-                if (!granted) return;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        @autoreleasepool {
+            UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+            [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+                completionHandler:^(BOOL granted, NSError *error) {
+                    if (!granted) return;
 
-                UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-                content.title = [NSString stringWithUTF8String:title];
-                if (subtitle && strlen(subtitle) > 0) {
-                    content.subtitle = [NSString stringWithUTF8String:subtitle];
-                }
-                content.body = [NSString stringWithUTF8String:body];
-                content.sound = [UNNotificationSound defaultSound];
-                // Request active interruption so it shows as a banner, not just in tray
-                if (@available(macOS 12.0, *)) {
-                    content.interruptionLevel = UNNotificationInterruptionLevelActive;
-                }
+                    UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+                    content.title = nsTitle;
+                    if (nsSubtitle) content.subtitle = nsSubtitle;
+                    content.body  = nsBody;
+                    content.sound = [UNNotificationSound defaultSound];
+                    if (@available(macOS 12.0, *)) {
+                        content.interruptionLevel = UNNotificationInterruptionLevelActive;
+                    }
 
-                NSString *identifier = [[NSUUID UUID] UUIDString];
-                UNNotificationRequest *request = [UNNotificationRequest
-                    requestWithIdentifier:identifier
-                    content:content
-                    trigger:nil];
-
-                [center addNotificationRequest:request withCompletionHandler:nil];
-            }];
-    }
+                    UNNotificationRequest *request = [UNNotificationRequest
+                        requestWithIdentifier:[[NSUUID UUID] UUIDString]
+                        content:content
+                        trigger:nil];
+                    [center addNotificationRequest:request withCompletionHandler:nil];
+                }];
+        }
+    });
 }
 */
 import "C"
