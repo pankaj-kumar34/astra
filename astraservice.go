@@ -38,6 +38,7 @@ func (s *AstraService) AutoConnectAll() {
 			go func(profile Profile) {
 				_ = s.manager.Connect(profile, func(state TunnelState) {
 					s.emit("tunnel:state", state)
+					s.handleNotification(profile, state)
 				})
 			}(cp)
 		}
@@ -172,6 +173,7 @@ func (s *AstraService) Connect(profileID string) error {
 
 	return s.manager.Connect(*profile, func(state TunnelState) {
 		s.emit("tunnel:state", state)
+		s.handleNotification(*profile, state)
 	})
 }
 
@@ -183,6 +185,22 @@ func (s *AstraService) Disconnect(profileID string) error {
 	state := s.manager.GetState(profileID)
 	s.emit("tunnel:state", state)
 	return nil
+}
+
+// handleNotification fires a macOS notification on meaningful state transitions.
+func (s *AstraService) handleNotification(profile Profile, state TunnelState) {
+	switch state.Status {
+	case StatusConnected:
+		notify("Astra", profile.Name, "Tunnel connected ✓")
+	case StatusError:
+		// Only notify when auto-reconnect is exhausted, not on every retry
+		if len(state.Logs) > 0 {
+			last := state.Logs[len(state.Logs)-1].Line
+			if last == "Auto-reconnect exhausted — giving up" {
+				notify("Astra", profile.Name, "Tunnel lost — reconnect failed")
+			}
+		}
+	}
 }
 
 // PickSSHKey opens a native file picker for SSH key files
