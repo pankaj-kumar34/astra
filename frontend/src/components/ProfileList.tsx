@@ -32,9 +32,9 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
             {/* Logo */}
             <div style={{
               width: 22, height: 22, borderRadius: 6, flexShrink: 0,
-              background: 'linear-gradient(135deg, #34d399, #10b981)',
+              background: 'linear-gradient(135deg, #A89EEF, #7C6FE0)',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              boxShadow: '0 2px 8px rgba(16,185,129,0.45)',
+              boxShadow: '0 2px 8px rgba(124,111,224,0.45)',
             }}>
               <svg width="11" height="11" fill="none" viewBox="0 0 24 24" stroke="white" strokeWidth={2.5}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
@@ -44,7 +44,7 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
             {connected > 0 && (
               <span style={{
                 fontSize: 10, padding: '1px 6px', borderRadius: 99, fontWeight: 600,
-                background: 'rgba(52,211,153,0.2)', color: '#34d399', border: '1px solid rgba(52,211,153,0.3)',
+                background: 'rgba(124,111,224,0.2)', color: '#A89EEF', border: '1px solid rgba(124,111,224,0.3)',
               }}>{connected}</span>
             )}
           </div>
@@ -81,7 +81,7 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
               <Zap style={{ width: 14, height: 14, color: 'rgba(255,255,255,0.45)' }} />
             </div>
             <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)' }}>No profiles yet</span>
-            <button onClick={onNew} style={{ background: 'none', border: 'none', fontSize: 11, color: '#34d399', cursor: 'pointer', padding: 0 }}>
+            <button onClick={onNew} style={{ background: 'none', border: 'none', fontSize: 11, color: '#A89EEF', cursor: 'pointer', padding: 0 }}>
               Create one →
             </button>
           </div>
@@ -105,11 +105,11 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
                   <div style={{ display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 }}>
                     <div style={{
                       width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-                      background: isConnected ? 'rgba(52,211,153,0.2)' : 'rgba(255,255,255,0.08)',
-                      border: `1px solid ${isConnected ? 'rgba(52,211,153,0.35)' : 'rgba(255,255,255,0.12)'}`,
+                      background: isConnected ? 'rgba(124,111,224,0.2)' : 'rgba(255,255,255,0.08)',
+                      border: `1px solid ${isConnected ? 'rgba(124,111,224,0.35)' : 'rgba(255,255,255,0.12)'}`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <Zap style={{ width: 12, height: 12, color: isConnected ? '#34d399' : 'rgba(255,255,255,0.35)' }} />
+                      <Zap style={{ width: 12, height: 12, color: isConnected ? '#A89EEF' : 'rgba(255,255,255,0.35)' }} />
                     </div>
                     <div style={{ minWidth: 0 }}>
                       <p style={{

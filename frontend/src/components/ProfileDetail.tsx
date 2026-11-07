@@ -104,8 +104,8 @@ export function ProfileDetail({
                 width: 40,
                 height: 40,
                 borderRadius: 12,
-                background: isConnected ? "#ecfdf5" : "#f4f4f5",
-                border: `1px solid ${isConnected ? "#a7f3d0" : "#e4e4e7"}`,
+                background: isConnected ? "#f0f0ff" : "#f4f4f5",
+                border: `1px solid ${isConnected ? "#c4c0f8" : "#e4e4e7"}`,
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -115,7 +115,7 @@ export function ProfileDetail({
                 style={{
                   width: 18,
                   height: 18,
-                  color: isConnected ? "#10b981" : "#a1a1aa",
+                  color: isConnected ? "#7C6FE0" : "#a1a1aa",
                 }}
               />
             </div>
@@ -247,16 +247,16 @@ export function ProfileDetail({
               fontSize: 12,
               fontWeight: 600,
               cursor: "pointer",
-              background: isActive ? "#e4e4e7" : "#10b981",
+              background: isActive ? "#e4e4e7" : "#7C6FE0",
               color: isActive ? "#3f3f46" : "#fff",
-              boxShadow: isActive ? "none" : "0 2px 8px rgba(16,185,129,0.3)",
+              boxShadow: isActive ? "none" : "0 2px 8px rgba(124,111,224,0.3)",
               transition: "background 0.15s",
             }}
             onMouseEnter={(e) => {
-              e.currentTarget.style.background = isActive ? "#d4d4d8" : "#059669";
+              e.currentTarget.style.background = isActive ? "#d4d4d8" : "#5B52C4";
             }}
             onMouseLeave={(e) => {
-              e.currentTarget.style.background = isActive ? "#e4e4e7" : "#10b981";
+              e.currentTarget.style.background = isActive ? "#e4e4e7" : "#7C6FE0";
             }}
           >
             {isActive ? "Disconnect" : "Connect"}
@@ -326,7 +326,7 @@ export function ProfileDetail({
               color: activeTab === tab ? "#18181b" : "#71717a",
               borderBottom:
                 activeTab === tab
-                  ? "2px solid #10b981"
+                  ? "2px solid #7C6FE0"
                   : "2px solid transparent",
               marginBottom: -1,
             }}
@@ -380,7 +380,7 @@ function CopyButton({ text }: { text: string }) {
       title="Copy connection string"
       style={{
         background: "none", border: "none", cursor: "pointer", padding: 3,
-        borderRadius: 4, display: "flex", alignItems: "center", color: copied ? "#10b981" : "#a1a1aa",
+        borderRadius: 4, display: "flex", alignItems: "center", color: copied ? "#7C6FE0" : "#a1a1aa",
         flexShrink: 0,
       }}
       onMouseEnter={(e) => { if (!copied) e.currentTarget.style.color = "#52525b" }}
@@ -568,8 +568,8 @@ function OverviewTab({
                     const key = String(fwd.localPort)
                     const known = portHealth[key] !== undefined
                     const healthy = portHealth[key] === true
-                    const color = !known ? "#a1a1aa" : healthy ? "#10b981" : "#ef4444"
-                    const shadow = !known ? "none" : healthy ? "0 0 6px rgba(16,185,129,0.5)" : "0 0 6px rgba(239,68,68,0.5)"
+                    const color = !known ? "#a1a1aa" : healthy ? "#7C6FE0" : "#ef4444"
+                    const shadow = !known ? "none" : healthy ? "0 0 6px rgba(124,111,224,0.5)" : "0 0 6px rgba(239,68,68,0.5)"
                     return (
                       <div
                         style={{
@@ -620,7 +620,7 @@ function OverviewTab({
                     <p style={{ fontSize: 10, color: "#71717a", margin: "0 0 3px" }}>
                       {fwd.label || SERVICE_PRESETS[fwd.service]?.label}
                     </p>
-                    <code style={{ fontSize: 12, color: "#34d399", fontFamily: "monospace" }}>
+                    <code style={{ fontSize: 12, color: "#A89EEF", fontFamily: "monospace" }}>
                       {hint}
                     </code>
                   </div>

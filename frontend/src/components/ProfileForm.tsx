@@ -33,13 +33,13 @@ function LInput({ value, onChange, placeholder, mono, type = 'text', error }: {
         background: '#fff',
         border: `1px solid ${error ? '#fca5a5' : '#e4e4e7'}`,
         borderRadius: 7, padding: '7px 10px', fontSize: 12,
-        color: '#18181b', caretColor: '#10b981', outline: 'none',
+        color: '#18181b', caretColor: "#7C6FE0", outline: 'none',
         fontFamily: mono ? '"SF Mono", ui-monospace, monospace' : 'inherit',
         transition: 'border-color 0.15s, box-shadow 0.15s',
       }}
       onFocus={e => {
-        e.currentTarget.style.borderColor = error ? '#f87171' : '#10b981'
-        e.currentTarget.style.boxShadow = `0 0 0 3px ${error ? 'rgba(239,68,68,0.1)' : 'rgba(16,185,129,0.12)'}`
+        e.currentTarget.style.borderColor = error ? '#f87171' : '#7C6FE0'
+        e.currentTarget.style.boxShadow = `0 0 0 3px ${error ? 'rgba(239,68,68,0.1)' : 'rgba(124,111,224,0.12)'}`
       }}
       onBlur={e => {
         e.currentTarget.style.borderColor = error ? '#fca5a5' : '#e4e4e7'
@@ -181,7 +181,7 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
                   type="checkbox"
                   checked={form.autoConnect ?? false}
                   onChange={e => set('autoConnect', e.target.checked)}
-                  style={{ width: 14, height: 14, accentColor: '#10b981', cursor: 'pointer' }}
+                  style={{ width: 14, height: 14, accentColor: '#7C6FE0', cursor: 'pointer' }}
                 />
                 <span style={{ fontSize: 12, color: '#52525b', fontWeight: 500 }}>Auto-connect on launch</span>
               </label>
@@ -236,10 +236,10 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
             </p>
             <button onClick={addForward} style={{
               background: 'none', border: 'none', cursor: 'pointer', padding: '3px 8px',
-              fontSize: 11, color: '#10b981', display: 'flex', alignItems: 'center', gap: 4, borderRadius: 5,
+              fontSize: 11, color: '#7C6FE0', display: 'flex', alignItems: 'center', gap: 4, borderRadius: 5,
               fontWeight: 500,
             }}
-              onMouseEnter={e => (e.currentTarget.style.background = '#f0fdf4')}
+              onMouseEnter={e => (e.currentTarget.style.background = '#f0f0ff')}
               onMouseLeave={e => (e.currentTarget.style.background = 'none')}
             >
               <Plus style={{ width: 11, height: 11 }} /> Add
@@ -251,7 +251,7 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
               border: '1px dashed #d4d4d8', borderRadius: 8,
               padding: '18px 16px', textAlign: 'center', cursor: 'pointer',
             }}
-              onMouseEnter={e => (e.currentTarget.style.borderColor = '#10b981')}
+              onMouseEnter={e => (e.currentTarget.style.borderColor = '#7C6FE0')}
               onMouseLeave={e => (e.currentTarget.style.borderColor = '#d4d4d8')}
             >
               <p style={{ fontSize: 12, color: '#a1a1aa', margin: 0 }}>No forwards yet — click to add one</p>
@@ -321,13 +321,13 @@ export function ProfileForm({ profile, onSave, onCancel }: Props) {
           Cancel
         </button>
         <button onClick={handleSave} disabled={saving} style={{
-          background: '#10b981', color: '#fff', border: 'none',
+          background: '#7C6FE0', color: '#fff', border: 'none',
           borderRadius: 7, padding: '6px 18px', fontSize: 12, fontWeight: 600,
           cursor: saving ? 'not-allowed' : 'pointer', opacity: saving ? 0.7 : 1,
-          boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
+          boxShadow: '0 2px 8px rgba(124,111,224,0.3)',
         }}
-          onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#059669' }}
-          onMouseLeave={e => (e.currentTarget.style.background = '#10b981')}
+          onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#5B52C4' }}
+          onMouseLeave={e => (e.currentTarget.style.background = '#7C6FE0')}
         >
           {saving ? 'Saving…' : isNew ? 'Create Profile' : 'Save Changes'}
         </button>

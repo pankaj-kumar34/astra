@@ -55,7 +55,7 @@ export default function App() {
         <div style={{ flex: 1, overflow: 'hidden', background: '#f6f6f7', display: 'flex', flexDirection: 'column', position: 'relative', colorScheme: 'light' } as React.CSSProperties}>
           {loading ? (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100%' }}>
-              <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #d4d4d8', borderTopColor: '#10b981', animation: 'spin 0.8s linear infinite' }} />
+              <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid #d4d4d8', borderTopColor: '#7C6FE0', animation: 'spin 0.8s linear infinite' }} />
             </div>
           ) : view === 'form' ? (
             <ProfileForm profile={editingProfile} onSave={handleSave} onCancel={() => setView('detail')} />
@@ -84,11 +84,11 @@ function EmptyState({ onNew }: { onNew: () => void }) {
     <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 12, marginTop: '-40px' }}>
       <div style={{
         width: 48, height: 48, borderRadius: 14,
-        background: '#ecfdf5',
-        border: '1px solid #a7f3d0',
+        background: '#f0f0ff',
+        border: '1px solid #c4c0f8',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}>
-        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#10b981" strokeWidth={1.5}>
+        <svg width="20" height="20" fill="none" viewBox="0 0 24 24" stroke="#7C6FE0" strokeWidth={1.5}>
           <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
         </svg>
       </div>
@@ -101,13 +101,13 @@ function EmptyState({ onNew }: { onNew: () => void }) {
         </p>
       </div>
       <button onClick={onNew} style={{
-        background: '#10b981', color: '#fff', border: 'none', borderRadius: 8,
+        background: '#7C6FE0', color: '#fff', border: 'none', borderRadius: 8,
         padding: '7px 18px', fontSize: 12, fontWeight: 600, cursor: 'pointer',
-        boxShadow: '0 2px 8px rgba(16,185,129,0.3)',
+        boxShadow: '0 2px 8px rgba(124,111,224,0.3)',
         marginTop: 4, letterSpacing: '-0.01em',
       }}
-        onMouseEnter={e => (e.currentTarget.style.background = '#059669')}
-        onMouseLeave={e => (e.currentTarget.style.background = '#10b981')}
+        onMouseEnter={e => (e.currentTarget.style.background = '#5B52C4')}
+        onMouseLeave={e => (e.currentTarget.style.background = '#7C6FE0')}
       >
         New Profile
       </button>
