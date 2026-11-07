@@ -23,6 +23,10 @@ void sendNotification(const char *title, const char *subtitle, const char *body)
                 }
                 content.body = [NSString stringWithUTF8String:body];
                 content.sound = [UNNotificationSound defaultSound];
+                // Request active interruption so it shows as a banner, not just in tray
+                if (@available(macOS 12.0, *)) {
+                    content.interruptionLevel = UNNotificationInterruptionLevelActive;
+                }
 
                 NSString *identifier = [[NSUUID UUID] UUIDString];
                 UNNotificationRequest *request = [UNNotificationRequest
