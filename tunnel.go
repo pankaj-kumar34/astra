@@ -245,7 +245,7 @@ func (tm *TunnelManager) startTunnel(profile Profile, onUpdate func(TunnelState)
 		// Unexpected exit
 		errMsg := ""
 		if err != nil {
-			errMsg = err.Error()
+			errMsg = friendlySSHError(err.Error(), tp.state.Logs)
 		}
 		tp.state.Status = StatusError
 		tp.state.Error = errMsg
@@ -479,4 +479,45 @@ func appendLogEntry(logs []LogEntry, line, level string) []LogEntry {
 		logs = logs[len(logs)-500:]
 	}
 	return logs
+}
+
+// friendlySSHError converts raw SSH exit errors into human-readable messages
+// by inspecting the last few log lines for clues.
+func friendlySSHError(raw string, logs []LogEntry) string {
+	// Collect recent log text for pattern matching
+	recent := ""
+	start := len(logs) - 10
+	if start < 0 {
+		start = 0
+	}
+	for _, l := range logs[start:] {
+		recent += l.Line + "\n"
+	}
+
+	switch {
+	case strings.Contains(recent, "Permission denied"):
+		return "Permission denied — check SSH key and username"
+	case strings.Contains(recent, "Connection refused"):
+		return "Connection refused — is the host reachable on that port?"
+	case strings.Contains(recent, "No route to host"),
+		strings.Contains(recent, "Network is unreachable"),
+		strings.Contains(recent, "Operation timed out"),
+		strings.Contains(recent, "connect to host"):
+		return "Network unreachable — check your internet connection"
+	case strings.Contains(recent, "Host key verification failed"):
+		return "Host key verification failed — remove old entry from known_hosts"
+	case strings.Contains(recent, "Bad local forwarding spec"),
+		strings.Contains(recent, "bind: Address already in use"):
+		return "Port already in use — another process is holding the local port"
+	case strings.Contains(recent, "ServerAlive"),
+		strings.Contains(raw, "255") && strings.Contains(recent, "Timeout"):
+		return "Connection lost — server stopped responding"
+	case raw == "exit status 255" || raw == "signal: killed":
+		return "Connection lost — SSH exited unexpectedly"
+	default:
+		if raw != "" {
+			return raw
+		}
+		return "Connection lost"
+	}
 }
