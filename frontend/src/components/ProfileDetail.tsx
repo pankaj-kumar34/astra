@@ -340,7 +340,7 @@ export function ProfileDetail({
       {/* Body */}
       <div style={{ flex: 1, overflow: "hidden", padding: "20px 28px" }}>
         {activeTab === "overview" ? (
-          <OverviewTab profile={profile} isConnected={isConnected} />
+          <OverviewTab profile={profile} isConnected={isConnected} portHealth={state.portHealth ?? {}} />
         ) : (
           <LogViewer logs={state.logs ?? []} />
         )}
@@ -352,9 +352,11 @@ export function ProfileDetail({
 function OverviewTab({
   profile,
   isConnected,
+  portHealth,
 }: {
   profile: Profile;
   isConnected: boolean;
+  portHealth: Record<string, boolean | undefined>;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
@@ -517,18 +519,25 @@ function OverviewTab({
                       {fwd.remoteHost}:{fwd.remotePort}
                     </span>
                   </div>
-                  {isConnected && (
-                    <div
-                      style={{
-                        width: 7,
-                        height: 7,
-                        borderRadius: "50%",
-                        background: "#10b981",
-                        flexShrink: 0,
-                        boxShadow: "0 0 6px rgba(16,185,129,0.5)",
-                      }}
-                    />
-                  )}
+                  {isConnected && (() => {
+                    const key = String(fwd.localPort)
+                    const known = portHealth[key] !== undefined
+                    const healthy = portHealth[key] === true
+                    const color = !known ? "#a1a1aa" : healthy ? "#10b981" : "#ef4444"
+                    const shadow = !known ? "none" : healthy ? "0 0 6px rgba(16,185,129,0.5)" : "0 0 6px rgba(239,68,68,0.5)"
+                    return (
+                      <div
+                        style={{
+                          width: 7,
+                          height: 7,
+                          borderRadius: "50%",
+                          background: color,
+                          flexShrink: 0,
+                          boxShadow: shadow,
+                        }}
+                      />
+                    )
+                  })()}
                 </div>
               );
             })}

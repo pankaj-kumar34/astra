@@ -55,7 +55,7 @@ func (tm *TunnelManager) GetState(profileID string) TunnelState {
 	if tp, ok := tm.tunnels[profileID]; ok {
 		return tp.state
 	}
-	return TunnelState{ProfileID: profileID, Status: StatusIdle, Logs: []LogEntry{}}
+	return TunnelState{ProfileID: profileID, Status: StatusIdle, Logs: []LogEntry{}, PortHealth: map[string]bool{}}
 }
 
 func (tm *TunnelManager) GetAllStates() map[string]TunnelState {
@@ -114,10 +114,11 @@ func (tm *TunnelManager) startTunnel(profile Profile, onUpdate func(TunnelState)
 		manual:     false,
 		waitErr:    waitErr,
 		state: TunnelState{
-			ProfileID: profile.ID,
-			Status:    StatusConnecting,
-			StartedAt: &now,
-			Logs:      prevLogs,
+			ProfileID:  profile.ID,
+			Status:     StatusConnecting,
+			StartedAt:  &now,
+			Logs:       prevLogs,
+			PortHealth: map[string]bool{},
 		},
 	}
 	tm.tunnels[profile.ID] = tp
@@ -291,32 +292,59 @@ func (tm *TunnelManager) autoReconnect(profile Profile, onUpdate func(TunnelStat
 	tm.appendLog(profile.ID, "Auto-reconnect exhausted — giving up", "error", onUpdate)
 }
 
-// runHealthPinger dials each forwarded port every 30s and emits health updates
+// runHealthPinger dials each forwarded port every 30s and emits per-port health updates
 func (tm *TunnelManager) runHealthPinger(profile Profile, stop chan struct{}, onUpdate func(TunnelState)) {
 	if len(profile.Forwards) == 0 {
 		return
 	}
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
+
+	ping := func() {
+		tm.mu.Lock()
+		tp, ok := tm.tunnels[profile.ID]
+		if !ok {
+			tm.mu.Unlock()
+			return
+		}
+		if tp.state.PortHealth == nil {
+			tp.state.PortHealth = map[string]bool{}
+		}
+		changed := false
+		for _, fwd := range profile.Forwards {
+			key := fmt.Sprintf("%d", fwd.LocalPort)
+			addr := fmt.Sprintf("127.0.0.1:%d", fwd.LocalPort)
+			conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
+			reachable := err == nil
+			if reachable {
+				conn.Close()
+			}
+			if prev, exists := tp.state.PortHealth[key]; !exists || prev != reachable {
+				tp.state.PortHealth[key] = reachable
+				changed = true
+				if !reachable {
+					tp.state.Logs = appendLogEntry(tp.state.Logs, fmt.Sprintf("Health: port %d unreachable", fwd.LocalPort), "warn")
+				} else {
+					tp.state.Logs = appendLogEntry(tp.state.Logs, fmt.Sprintf("Health: port %d reachable ✓", fwd.LocalPort), "info")
+				}
+			}
+		}
+		state := tp.state
+		tm.mu.Unlock()
+		if changed {
+			onUpdate(state)
+		}
+	}
+
+	// Run immediately on connect
+	ping()
+
 	for {
 		select {
 		case <-stop:
 			return
 		case <-ticker.C:
-			allOK := true
-			for _, fwd := range profile.Forwards {
-				addr := fmt.Sprintf("127.0.0.1:%d", fwd.LocalPort)
-				conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
-				if err != nil {
-					allOK = false
-					tm.appendLog(profile.ID, fmt.Sprintf("Health: port %d unreachable", fwd.LocalPort), "warn", onUpdate)
-				} else {
-					conn.Close()
-				}
-			}
-			if allOK {
-				tm.appendLog(profile.ID, "Health: all ports reachable ✓", "info", onUpdate)
-			}
+			ping()
 		}
 	}
 }
@@ -415,12 +443,16 @@ func (tm *TunnelManager) appendLog(profileID, line, level string, onUpdate func(
 		tm.mu.Unlock()
 		return
 	}
-	entry := LogEntry{Timestamp: time.Now(), Line: line, Level: level}
-	tp.state.Logs = append(tp.state.Logs, entry)
-	if len(tp.state.Logs) > 500 {
-		tp.state.Logs = tp.state.Logs[len(tp.state.Logs)-500:]
-	}
+	tp.state.Logs = appendLogEntry(tp.state.Logs, line, level)
 	state := tp.state
 	tm.mu.Unlock()
 	onUpdate(state)
+}
+
+func appendLogEntry(logs []LogEntry, line, level string) []LogEntry {
+	logs = append(logs, LogEntry{Timestamp: time.Now(), Line: line, Level: level})
+	if len(logs) > 500 {
+		logs = logs[len(logs)-500:]
+	}
+	return logs
 }

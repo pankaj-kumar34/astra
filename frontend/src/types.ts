@@ -35,5 +35,6 @@ export function idleState(profileId: string): TunnelState {
     startedAt: null,
     error: '',
     logs: [],
+    portHealth: {},
   }
 }
