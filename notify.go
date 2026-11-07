@@ -2,28 +2,42 @@ package main
 
 /*
 #cgo CFLAGS: -x objective-c -Wno-deprecated-declarations
-#cgo LDFLAGS: -framework Foundation -framework AppKit
+#cgo LDFLAGS: -framework Foundation -framework UserNotifications
 
 #import <Foundation/Foundation.h>
-#import <AppKit/AppKit.h>
+#import <UserNotifications/UserNotifications.h>
 
 void sendNotification(const char *title, const char *subtitle, const char *body) {
     @autoreleasepool {
-        NSUserNotification *notification = [[NSUserNotification alloc] init];
-        notification.title = [NSString stringWithUTF8String:title];
-        if (subtitle && strlen(subtitle) > 0) {
-            notification.subtitle = [NSString stringWithUTF8String:subtitle];
-        }
-        notification.informativeText = [NSString stringWithUTF8String:body];
-        notification.soundName = NSUserNotificationDefaultSoundName;
-        [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+
+        // Request permission (no-op if already granted/denied)
+        [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
+            completionHandler:^(BOOL granted, NSError *error) {
+                if (!granted) return;
+
+                UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+                content.title = [NSString stringWithUTF8String:title];
+                if (subtitle && strlen(subtitle) > 0) {
+                    content.subtitle = [NSString stringWithUTF8String:subtitle];
+                }
+                content.body = [NSString stringWithUTF8String:body];
+                content.sound = [UNNotificationSound defaultSound];
+
+                NSString *identifier = [[NSUUID UUID] UUIDString];
+                UNNotificationRequest *request = [UNNotificationRequest
+                    requestWithIdentifier:identifier
+                    content:content
+                    trigger:nil];
+
+                [center addNotificationRequest:request withCompletionHandler:nil];
+            }];
     }
 }
 */
 import "C"
 
-// notify sends a native macOS notification using NSUserNotificationCenter.
-// The notification appears with Astra's app icon.
+// notify sends a native macOS notification using UNUserNotificationCenter.
 func notify(title, subtitle, message string) {
 	C.sendNotification(C.CString(title), C.CString(subtitle), C.CString(message))
 }
