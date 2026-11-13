@@ -129,26 +129,35 @@ jobs:
           task --version
           wails3 version
 
-      - name: Package macOS DMG
+      - name: Build & Package Apple Silicon (arm64)
         run: |
-          task darwin:package:dmg
-
-      - name: Prepare Release Artifacts
-        run: |
-          VERSION="${{ steps.versioning.outputs.version }}"
+          task darwin:package:arm64:dmg
+          lipo -info bin/astra.app/Contents/MacOS/astra
           mkdir -p release-artifacts
+          VERSION="${{ steps.versioning.outputs.version }}"
+          cp bin/astra.dmg "release-artifacts/Astra-${VERSION}-macOS-arm64.dmg"
+          ditto -c -k --keepParent bin/astra.app "release-artifacts/Astra-${VERSION}-macOS-arm64.zip"
 
-          # Copy and standardize DMG artifact naming
-          if [ -f bin/astra.dmg ]; then
-            cp bin/astra.dmg "release-artifacts/Astra-${VERSION}-macOS.dmg"
-          fi
+      - name: Build & Package Intel (x86_64)
+        run: |
+          task darwin:package:amd64:dmg
+          lipo -info bin/astra.app/Contents/MacOS/astra
+          mkdir -p release-artifacts
+          VERSION="${{ steps.versioning.outputs.version }}"
+          cp bin/astra.dmg "release-artifacts/Astra-${VERSION}-macOS-x64.dmg"
+          ditto -c -k --keepParent bin/astra.app "release-artifacts/Astra-${VERSION}-macOS-x64.zip"
 
-          # Archive .app into a standard distributable zip
-          if [ -d bin/astra.app ]; then
-            ditto -c -k --keepParent bin/astra.app "release-artifacts/Astra-${VERSION}-macOS.zip"
-          fi
+      - name: Build & Package Universal (arm64 + x86_64)
+        run: |
+          task darwin:package:universal:dmg
+          lipo -info bin/astra.app/Contents/MacOS/astra
+          mkdir -p release-artifacts
+          VERSION="${{ steps.versioning.outputs.version }}"
+          cp bin/astra.dmg "release-artifacts/Astra-${VERSION}-macOS-universal.dmg"
+          ditto -c -k --keepParent bin/astra.app "release-artifacts/Astra-${VERSION}-macOS-universal.zip"
 
-          # Generate SHA256 checksums
+      - name: Generate SHA256 Checksums
+        run: |
           cd release-artifacts
           shasum -a 256 *.dmg *.zip > checksums.txt
           cat checksums.txt

@@ -121,6 +121,34 @@ tasks:
     cmds:
       - task: create:app:bundle
 
+  package:arm64:
+    summary: Packages Apple Silicon (arm64) `.app` bundle
+    cmds:
+      - task: build
+        vars:
+          ARCH: arm64
+      - task: create:app:bundle
+
+  package:amd64:
+    summary: Packages Intel (amd64 / x86_64) `.app` bundle
+    cmds:
+      - task: build
+        vars:
+          ARCH: amd64
+      - task: create:app:bundle
+
+  package:arm64:dmg:
+    summary: Packages Apple Silicon (arm64) `.dmg`
+    cmds:
+      - task: package:arm64
+      - task: create:dmg
+
+  package:amd64:dmg:
+    summary: Packages Intel (amd64 / x86_64) `.dmg`
+    cmds:
+      - task: package:amd64
+      - task: create:dmg
+
   package:universal:
     summary: Packages darwin universal binary (arm64 + amd64)
     deps:
@@ -128,10 +156,17 @@ tasks:
     cmds:
       - task: create:app:bundle
 
-  package:dmg:
-    summary: Packages the application into a styled `.dmg`
+  package:universal:dmg:
+    summary: Packages darwin universal binary (arm64 + amd64) into a styled `.dmg`
     deps:
-      - task: package
+      - task: package:universal
+    cmds:
+      - task: create:dmg
+
+  package:dmg:
+    summary: Packages the application into a styled universal `.dmg` (arm64 + amd64)
+    deps:
+      - task: package:universal
     cmds:
       - task: create:dmg
 
