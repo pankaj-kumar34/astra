@@ -39,12 +39,20 @@ export function useUpdater() {
   }, [])
 
   useEffect(() => {
+    let cancelled = false
+
     UpdaterService.GetVersionInfo()
-      .then((info) => setVersionInfo(info))
+      .then((info) => {
+        if (!cancelled) setVersionInfo(info)
+      })
       .catch(() => {})
 
     // Silent background check on launch
-    checkForUpdate(true)
+    UpdaterService.CheckForUpdate()
+      .then((res) => {
+        if (!cancelled && res) setUpdateResult(res)
+      })
+      .catch(() => {})
 
     const unsub = Events.On('updater:progress', (event) => {
       const p: UpdateProgress = event.data?.[0] ?? event.data ?? event
@@ -59,9 +67,10 @@ export function useUpdater() {
       }
     })
     return () => {
+      cancelled = true
       if (typeof unsub === 'function') unsub()
     }
-  }, [checkForUpdate])
+  }, [])
 
   const installUpdate = useCallback(async () => {
     if (!updateResult?.assetUrl) return

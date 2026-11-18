@@ -114,14 +114,14 @@ export function UpdateModal({
           {checkError && (
             <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs text-rose-700">
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-600" />
-              <div className="min-w-0 flex-1 break-words">{checkError}</div>
+              <div className="min-w-0 flex-1 wrap-break-word">{checkError}</div>
             </div>
           )}
 
           {installError && (
             <div className="flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 px-3.5 py-3 text-xs text-rose-700">
               <AlertCircle className="mt-0.5 size-4 shrink-0 text-rose-600" />
-              <div className="min-w-0 flex-1 break-words">{installError}</div>
+              <div className="min-w-0 flex-1 wrap-break-word">{installError}</div>
             </div>
           )}
 
