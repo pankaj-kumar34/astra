@@ -101,7 +101,7 @@ jobs:
             mkdir -p "${DIST_DIR}/Astra.app/Contents/Resources"
             GOARCH="${ARCH}" go build -tags production -trimpath -buildvcs=false \
               -ldflags="-w -s -X astra/backend/services.AppVersion=${VER} -X astra/backend/services.GitHubRepo=${{ github.repository }}" \
-              -o "${DIST_DIR}/Astra.app/Contents/MacOS/Astra" .
+              -o "${DIST_DIR}/Astra.app/Contents/MacOS/astra" .
             cp build/darwin/icons.icns "${DIST_DIR}/Astra.app/Contents/Resources/" || true
             if [ -f build/darwin/Assets.car ]; then
               cp build/darwin/Assets.car "${DIST_DIR}/Astra.app/Contents/Resources/"
@@ -109,6 +109,7 @@ jobs:
             sed "s/1.0.0/${VER}/g" build/darwin/Info.plist > "${DIST_DIR}/Astra.app/Contents/Info.plist"
             xattr -cr "${DIST_DIR}/Astra.app"
             codesign --force --deep --sign - "${DIST_DIR}/Astra.app"
+            codesign --verify --deep --strict "${DIST_DIR}/Astra.app"
             tar -C "${DIST_DIR}" -czf "astra-darwin-${ARCH}.tar.gz" Astra.app
           done
 
