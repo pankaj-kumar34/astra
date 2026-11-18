@@ -100,7 +100,7 @@ jobs:
             mkdir -p "${DIST_DIR}/Astra.app/Contents/MacOS"
             mkdir -p "${DIST_DIR}/Astra.app/Contents/Resources"
             GOARCH="${ARCH}" go build -tags production -trimpath -buildvcs=false \
-              -ldflags="-w -s -X astra/backend/services.AppVersion=${VER} -X astra/backend/services.GitHubRepo=${{ github.repository }}" \
+              -ldflags="-w -s -X main.AppVersion=${VER} -X main.GitHubRepo=${{ github.repository }}" \
               -o "${DIST_DIR}/Astra.app/Contents/MacOS/astra" .
             cp build/darwin/icons.icns "${DIST_DIR}/Astra.app/Contents/Resources/" || true
             if [ -f build/darwin/Assets.car ]; then
@@ -124,7 +124,7 @@ jobs:
           VER="${{ steps.version.outputs.version }}"
           mkdir -p dist
           go build -tags production -trimpath -buildvcs=false \
-            -ldflags="-w -s -X astra/backend/services.AppVersion=${VER} -X astra/backend/services.GitHubRepo=${{ github.repository }}" \
+            -ldflags="-w -s -X main.AppVersion=${VER} -X main.GitHubRepo=${{ github.repository }}" \
             -o dist/astra .
           chmod +x dist/astra
           tar -C dist -czf "astra-${{ matrix.platform }}.tar.gz" astra
@@ -140,7 +140,7 @@ jobs:
           VER="${{ steps.version.outputs.version }}"
           mkdir -p dist
           go build -tags production -trimpath -buildvcs=false \
-            -ldflags="-w -s -H windowsgui -X astra/backend/services.AppVersion=${VER} -X astra/backend/services.GitHubRepo=${{ github.repository }}" \
+            -ldflags="-w -s -H windowsgui -X main.AppVersion=${VER} -X main.GitHubRepo=${{ github.repository }}" \
             -o dist/astra.exe .
           powershell -Command "Compress-Archive -Path dist/astra.exe -DestinationPath astra-${{ matrix.platform }}.zip -Force"
 

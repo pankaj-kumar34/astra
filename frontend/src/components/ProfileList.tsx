@@ -11,9 +11,24 @@ interface Props {
   onSelect: (id: string) => void
   onNew: () => void
   onDisconnectAll?: () => void
+  version?: string
+  hasUpdate?: boolean
+  readyToRestart?: boolean
+  onOpenUpdate?: () => void
 }
 
-export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNew, onDisconnectAll }: Props) {
+export function ProfileList({
+  profiles,
+  tunnelStates,
+  selectedId,
+  onSelect,
+  onNew,
+  onDisconnectAll,
+  version,
+  hasUpdate,
+  readyToRestart,
+  onOpenUpdate,
+}: Props) {
   const [filter, setFilter] = useState('')
 
   const getState = (id: string): TunnelState =>
@@ -60,6 +75,36 @@ export function ProfileList({ profiles, tunnelStates, selectedId, onSelect, onNe
             <div>
               <div className="flex items-center gap-1.5">
                 <span className="text-[15px] font-bold tracking-tight text-white">Astra</span>
+                {onOpenUpdate && (
+                  <button
+                    onClick={onOpenUpdate}
+                    title={
+                      readyToRestart
+                        ? 'Update installed — click to restart'
+                        : hasUpdate
+                          ? 'Update available — click to view'
+                          : 'Check for updates'
+                    }
+                    className={cn(
+                      'inline-flex cursor-pointer items-center gap-1 rounded-md border px-1.5 py-0.5 font-mono text-[10px] leading-none transition-colors',
+                      readyToRestart
+                        ? 'border-emerald-500/40 bg-emerald-500/15 text-emerald-300 hover:bg-emerald-500/25'
+                        : hasUpdate
+                          ? 'border-indigo-500/40 bg-indigo-500/20 text-indigo-300 hover:bg-indigo-500/30'
+                          : 'border-zinc-700/60 bg-zinc-800/70 text-zinc-400 hover:border-zinc-600 hover:text-zinc-200'
+                    )}
+                  >
+                    {(hasUpdate || readyToRestart) && (
+                      <span
+                        className={cn(
+                          'size-1.5 rounded-full',
+                          readyToRestart ? 'bg-emerald-400' : 'animate-pulse bg-indigo-400'
+                        )}
+                      />
+                    )}
+                    <span>{readyToRestart ? 'Restart' : hasUpdate ? 'Update' : `v${version || '1.0.0'}`}</span>
+                  </button>
+                )}
               </div>
               <p className="mt-0.5 text-[11px] leading-tight font-normal text-zinc-400">
                 SSH Tunnel Manager

@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useAstra } from './useAstra'
+import { useUpdater } from './useUpdater'
 import { ProfileList } from './components/ProfileList'
 import { ProfileDetail } from './components/ProfileDetail'
 import { ProfileForm } from './components/ProfileForm'
+import { UpdateModal } from './components/UpdateModal'
 import { Profile } from './types'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Plus, Shield, RefreshCw, Activity } from 'lucide-react'
@@ -26,8 +28,10 @@ export default function App() {
     disconnectAll,
   } = useAstra()
 
+  const updater = useUpdater()
   const [view, setView] = useState<View>('detail')
   const [editingProfile, setEditingProfile] = useState<Profile | null>(null)
+  const [updateModalOpen, setUpdateModalOpen] = useState(false)
 
   function openNew() {
     setEditingProfile(null)
@@ -66,6 +70,15 @@ export default function App() {
           onSelect={handleSelect}
           onNew={openNew}
           onDisconnectAll={disconnectAll}
+          version={updater.versionInfo?.version}
+          hasUpdate={updater.updateResult?.hasUpdate}
+          readyToRestart={updater.readyToRestart}
+          onOpenUpdate={() => {
+            setUpdateModalOpen(true)
+            if (!updater.updateResult && !updater.checking) {
+              updater.checkForUpdate(false)
+            }
+          }}
         />
 
         {/* Right Content Area */}
@@ -96,6 +109,23 @@ export default function App() {
           )}
         </div>
       </div>
+
+      <UpdateModal
+        open={updateModalOpen}
+        onClose={() => setUpdateModalOpen(false)}
+        versionInfo={updater.versionInfo}
+        updateResult={updater.updateResult}
+        checking={updater.checking}
+        checkError={updater.checkError}
+        progress={updater.progress}
+        installing={updater.installing}
+        readyToRestart={updater.readyToRestart}
+        installError={updater.installError}
+        onCheck={() => updater.checkForUpdate(false)}
+        onInstall={updater.installUpdate}
+        onRestart={updater.restartApp}
+        onOpenReleasePage={() => updater.openReleasePage()}
+      />
     </TooltipProvider>
   )
 }

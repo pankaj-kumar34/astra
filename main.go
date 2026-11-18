@@ -13,16 +13,22 @@ var assets embed.FS
 
 func init() {
 	application.RegisterEvent[TunnelState]("tunnel:state")
+	application.RegisterEvent[UpdateProgress]("updater:progress")
 }
 
 func main() {
 	svc := NewAstraService()
+	updaterSvc := NewUpdaterService()
+	updaterSvc.OnBeforeRestart = func() {
+		_ = svc.DisconnectAll()
+	}
 
 	app := application.New(application.Options{
 		Name:        "Astra",
 		Description: "SSH Bastion Tunnel Manager",
 		Services: []application.Service{
 			application.NewService(svc),
+			application.NewService(updaterSvc),
 		},
 		Assets: application.AssetOptions{
 			Handler: application.AssetFileServerFS(assets),
