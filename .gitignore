@@ -32,12 +32,6 @@ frontend/.vite/
 *.swp
 *.swo
 
-# ── Wails auto-generated platform scaffolding (macOS-only app) ────────────────
-build/android/
-build/ios/
-build/linux/
-build/windows/
-build/docker/
 
 # ── macOS ─────────────────────────────────────────────────────────────────────
 .DS_Store

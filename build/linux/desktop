@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Name=Astra
+Comment=SSH Bastion Tunnel Manager
+# The Exec line includes %u to pass the URL to the application
+Exec=/usr/local/bin/astra %u
+Terminal=false
+Type=Application
+Icon=astra
+Categories=Utility;
+StartupWMClass=astra
+
+ 
