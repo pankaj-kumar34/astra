@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import { Profile, TunnelState, TunnelStatus, SERVICE_PRESETS } from '@/types'
 import { StatusBadge } from './StatusBadge'
 import { cn } from '@/lib/utils'
-import { Server, Plus, Search, X, Radio } from 'lucide-react'
+import { Server, Plus, Search, X, Radio, Power } from 'lucide-react'
 
 interface Props {
   profiles: Profile[]
@@ -266,10 +266,17 @@ export function ProfileList({
       </div>
 
       {/* Footer Status Bar */}
-      <div className="flex items-center justify-between border-t border-zinc-800/80 bg-zinc-950/40 px-5 py-3.5 text-xs text-zinc-400">
-        <div className="flex min-w-0 items-center gap-2">
-          <Radio className={cn('size-3.5 shrink-0', connectedCount > 0 ? 'animate-pulse text-emerald-400' : 'text-zinc-500')} />
-          <span className="truncate text-[11px]">
+      <div className="flex items-center justify-between gap-2 border-t border-zinc-800/80 bg-zinc-950/40 px-4 py-3 text-xs text-zinc-400">
+        <div
+          className={cn(
+            'inline-flex min-w-0 items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-medium transition-colors',
+            connectedCount > 0
+              ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300'
+              : 'border-zinc-800 bg-zinc-900/80 text-zinc-500'
+          )}
+        >
+          <Radio className={cn('size-3 shrink-0', connectedCount > 0 ? 'animate-pulse text-emerald-400' : 'text-zinc-500')} />
+          <span className="truncate">
             {connectedCount === 0
               ? 'No active tunnels'
               : `${connectedCount} ${connectedCount === 1 ? 'tunnel' : 'tunnels'} active`}
@@ -277,11 +284,13 @@ export function ProfileList({
         </div>
         {connectedCount > 0 && onDisconnectAll && (
           <button
+            type="button"
             onClick={onDisconnectAll}
-            className="shrink-0 cursor-pointer rounded-md px-2 py-1 text-[11px] font-medium text-rose-400 transition-colors hover:bg-rose-500/10 hover:text-rose-300"
+            className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-[11px] font-medium text-rose-300 shadow-xs transition-all duration-150 hover:border-rose-500/50 hover:bg-rose-500/20 hover:text-rose-200 active:scale-95"
             title="Disconnect all profiles and stop all tunnels"
           >
-            Disconnect All
+            <Power className="size-3 text-rose-400" />
+            <span>Disconnect All</span>
           </button>
         )}
       </div>
