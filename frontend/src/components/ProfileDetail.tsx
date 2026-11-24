@@ -453,41 +453,61 @@ function OverviewTab({
             </div>
           ) : (
             <div className="grid grid-cols-1 gap-2.5">
-              {(profile.forwards ?? []).map(fwd => {
-                const preset = SERVICE_PRESETS[fwd.service]
-                const key = String(fwd.localPort)
-                const isKnown = isConnected && portHealth[key] !== undefined
-                const isHealthy = isConnected && portHealth[key] === true
+              {(() => {
+                const usedAddr = new Set<string>()
+                const hostIP = new Map<string, string>()
+                return (profile.forwards ?? []).map(fwd => {
+                  const host = fwd.remoteHost.trim()
+                  let bindIP = '127.0.0.1'
+                  const existingIP = host ? hostIP.get(host) : undefined
+                  if (existingIP && !usedAddr.has(`${existingIP}:${fwd.localPort}`)) {
+                    bindIP = existingIP
+                    usedAddr.add(`${bindIP}:${fwd.localPort}`)
+                  } else {
+                    for (let octet = 1; octet <= 254; octet++) {
+                      const ip = `127.0.0.${octet}`
+                      if (!usedAddr.has(`${ip}:${fwd.localPort}`)) {
+                        bindIP = ip
+                        usedAddr.add(`${ip}:${fwd.localPort}`)
+                        if (host && !hostIP.has(host)) hostIP.set(host, ip)
+                        break
+                      }
+                    }
+                  }
+                  const preset = SERVICE_PRESETS[fwd.service]
+                  const health = portHealth[fwd.id] ?? portHealth[String(fwd.localPort)]
+                  const isKnown = isConnected && health !== undefined
+                  const isHealthy = isConnected && health === true
 
-                return (
-                  <div
-                    key={fwd.id}
-                    className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-3.5 transition-all duration-150 hover:border-zinc-300 hover:bg-zinc-50"
-                  >
-                    {/* Service and Label */}
-                    <div className="flex min-w-42.5 shrink-0 items-center gap-3">
-                      <span
-                        className={cn(
-                          'shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold',
-                          preset?.color ?? 'border-zinc-200 bg-zinc-100 text-zinc-600'
-                        )}
-                      >
-                        {preset?.label ?? 'Custom'}
-                      </span>
-                      {fwd.label && (
-                        <span className="max-w-35 truncate text-xs font-semibold text-zinc-800">
-                          {fwd.label}
+                  return (
+                    <div
+                      key={fwd.id}
+                      className="flex items-center justify-between gap-4 rounded-xl border border-zinc-200/80 bg-zinc-50/50 p-3.5 transition-all duration-150 hover:border-zinc-300 hover:bg-zinc-50"
+                    >
+                      {/* Service and Label */}
+                      <div className="flex min-w-42.5 shrink-0 items-center gap-3">
+                        <span
+                          className={cn(
+                            'shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-semibold',
+                            preset?.color ?? 'border-zinc-200 bg-zinc-100 text-zinc-600'
+                          )}
+                        >
+                          {preset?.label ?? 'Custom'}
                         </span>
-                      )}
-                    </div>
-
-                    {/* Routing Map */}
-                    <div className="flex min-w-0 flex-1 items-center gap-3 font-mono text-xs text-zinc-600">
-                      <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 shadow-2xs">
-                        <span className="font-sans text-[11px] text-zinc-400">Local:</span>
-                        <span className="font-semibold text-zinc-900">127.0.0.1:{fwd.localPort}</span>
-                        <CopyButton text={`127.0.0.1:${fwd.localPort}`} label="Copy local endpoint" />
+                        {fwd.label && (
+                          <span className="max-w-35 truncate text-xs font-semibold text-zinc-800">
+                            {fwd.label}
+                          </span>
+                        )}
                       </div>
+
+                      {/* Routing Map */}
+                      <div className="flex min-w-0 flex-1 items-center gap-3 font-mono text-xs text-zinc-600">
+                        <div className="flex shrink-0 items-center gap-1.5 rounded-lg border border-zinc-200 bg-white px-3 py-1.5 shadow-2xs">
+                          <span className="font-sans text-[11px] text-zinc-400">Local:</span>
+                          <span className="font-semibold text-zinc-900">{bindIP}:{fwd.localPort}</span>
+                          <CopyButton text={`${bindIP}:${fwd.localPort}`} label="Copy local endpoint" />
+                        </div>
 
                       <ArrowRight className="size-3.5 shrink-0 text-zinc-400" />
 
@@ -534,8 +554,9 @@ function OverviewTab({
                       )}
                     </div>
                   </div>
-                )
-              })}
+                  )
+                })
+              })()}
             </div>
           )}
         </div>

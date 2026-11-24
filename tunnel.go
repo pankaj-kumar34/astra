@@ -70,6 +70,18 @@ func (tm *TunnelManager) GetAllStates() map[string]TunnelState {
 }
 
 func (tm *TunnelManager) Connect(profile Profile, onUpdate func(TunnelState)) error {
+	seenHostPort := make(map[string]bool, len(profile.Forwards))
+	for _, fwd := range profile.Forwards {
+		if fwd.LocalPort <= 0 {
+			continue
+		}
+		key := fmt.Sprintf("%s:%d", strings.ToLower(strings.TrimSpace(fwd.RemoteHost)), fwd.LocalPort)
+		if seenHostPort[key] {
+			return fmt.Errorf("duplicate forward on local port %d for %q", fwd.LocalPort, fwd.RemoteHost)
+		}
+		seenHostPort[key] = true
+	}
+
 	tm.mu.Lock()
 	if tp, ok := tm.tunnels[profile.ID]; ok {
 		if tp.state.Status == StatusConnected || tp.state.Status == StatusConnecting {
@@ -81,8 +93,12 @@ func (tm *TunnelManager) Connect(profile Profile, onUpdate func(TunnelState)) er
 
 	// Terminate any stale SSH process and free local ports before connecting
 	killSSHForProfile(profile)
+	freed := map[int]bool{}
 	for _, fwd := range profile.Forwards {
-		freePort(fwd.LocalPort)
+		if !freed[fwd.LocalPort] {
+			freed[fwd.LocalPort] = true
+			freePort(fwd.LocalPort)
+		}
 	}
 
 	return tm.startTunnel(profile, onUpdate, false)
@@ -188,10 +204,11 @@ func (tm *TunnelManager) startTunnel(profile Profile, onUpdate func(TunnelState)
 				tm.mu.RUnlock()
 
 				// Probe all ports; collect per-port results
+				bindIPs := assignBindIPs(profile.Forwards)
 				results := make([]bool, len(profile.Forwards))
 				allOK := true
 				for i, fwd := range profile.Forwards {
-					results[i] = probePort(fwd)
+					results[i] = probePort(bindIPs[i], fwd)
 					if !results[i] {
 						allOK = false
 					}
@@ -234,7 +251,15 @@ func (tm *TunnelManager) startTunnel(profile Profile, onUpdate func(TunnelState)
 				tm.mu.Unlock()
 			}
 		} else {
-			tm.appendLog(profile.ID, "Timed out waiting for remote services (30s) — check your forwards", "warn", onUpdate)
+			tm.mu.RLock()
+			stillConnecting := false
+			if tp, ok := tm.tunnels[profile.ID]; ok && tp.state.Status == StatusConnecting {
+				stillConnecting = true
+			}
+			tm.mu.RUnlock()
+			if stillConnecting {
+				tm.appendLog(profile.ID, "Timed out waiting for remote services (30s) — check your forwards", "warn", onUpdate)
+			}
 		}
 	}()
 
@@ -358,9 +383,13 @@ func (tm *TunnelManager) runHealthPinger(profile Profile, stop chan struct{}, on
 		}
 		changed := false
 		allUnreachable := true
-		for _, fwd := range profile.Forwards {
-			key := fmt.Sprintf("%d", fwd.LocalPort)
-			reachable := probePort(fwd)
+		bindIPs := assignBindIPs(profile.Forwards)
+		for i, fwd := range profile.Forwards {
+			key := fwd.ID
+			if key == "" {
+				key = fmt.Sprintf("%d", fwd.LocalPort)
+			}
+			reachable := probePort(bindIPs[i], fwd)
 			if reachable {
 				allUnreachable = false
 			}
@@ -441,6 +470,7 @@ func (tm *TunnelManager) Disconnect(profileID string) error {
 func buildSSHArgs(profile Profile) []string {
 	args := []string{
 		"-N",
+		"-o", "ExitOnForwardFailure=yes",
 		"-o", "ServerAliveInterval=10",
 		"-o", "ServerAliveCountMax=3",
 		"-o", "StrictHostKeyChecking=no",
@@ -448,8 +478,9 @@ func buildSSHArgs(profile Profile) []string {
 		"-i", profile.KeyPath,
 		"-p", fmt.Sprintf("%d", profile.Port),
 	}
-	for _, fwd := range profile.Forwards {
-		args = append(args, "-L", fmt.Sprintf("%d:%s:%d", fwd.LocalPort, fwd.RemoteHost, fwd.RemotePort))
+	ips := assignBindIPs(profile.Forwards)
+	for i, fwd := range profile.Forwards {
+		args = append(args, "-L", fmt.Sprintf("%s:%d:%s:%d", ips[i], fwd.LocalPort, fwd.RemoteHost, fwd.RemotePort))
 	}
 	args = append(args, fmt.Sprintf("%s@%s", profile.User, profile.Host))
 	return args
@@ -605,8 +636,11 @@ func postgresSSLDial(addr, serverName string) (bool, error) {
 
 // probePort does an end-to-end connectivity check using the best no-auth probe
 // available for each service type.
-func probePort(fwd PortForward) bool {
-	addr := fmt.Sprintf("127.0.0.1:%d", fwd.LocalPort)
+func probePort(bindIP string, fwd PortForward) bool {
+	if bindIP == "" {
+		bindIP = "127.0.0.1"
+	}
+	addr := fmt.Sprintf("%s:%d", bindIP, fwd.LocalPort)
 
 	switch fwd.Service {
 	case ServiceRedis, ServiceValkey:
@@ -676,7 +710,8 @@ func friendlySSHError(raw string, logs []LogEntry) string {
 	case strings.Contains(recent, "Host key verification failed"):
 		return "Host key verification failed — remove old entry from known_hosts"
 	case strings.Contains(recent, "Bad local forwarding spec"),
-		strings.Contains(recent, "bind: Address already in use"):
+		strings.Contains(recent, "Address already in use"),
+		strings.Contains(recent, "cannot listen to port"):
 		return "Port already in use — another process is holding the local port"
 	case strings.Contains(recent, "ServerAlive"),
 		strings.Contains(raw, "255") && strings.Contains(recent, "Timeout"):

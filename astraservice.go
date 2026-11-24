@@ -43,6 +43,9 @@ func (s *AstraService) AutoConnectAll() {
 		if p.AutoConnect {
 			cp := p
 			go func(profile Profile) {
+				if err := syncHostsForProfile(profile, data.Profiles); err != nil {
+					return
+				}
 				_ = s.manager.Connect(profile, func(state TunnelState) {
 					s.emit("tunnel:state", state)
 					s.checkDisconnectTransition(profile, state)
@@ -204,6 +207,11 @@ func (s *AstraService) Connect(profileID string) error {
 	}
 	if profile == nil {
 		return fmt.Errorf("profile not found: %s", profileID)
+	}
+
+	// Ensure /etc/hosts entries and any lo0 loopback aliases (127.0.0.2+) exist before binding
+	if err := syncHostsForProfile(*profile, data.Profiles); err != nil {
+		return fmt.Errorf("prepare local hosts/loopback: %w", err)
 	}
 
 	return s.manager.Connect(*profile, func(state TunnelState) {

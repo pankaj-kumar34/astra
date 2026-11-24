@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"strings"
@@ -15,10 +16,67 @@ func isAstraLine(line, profileID string) bool {
 	return strings.Contains(line, hostsTag+profileID)
 }
 
-// syncHostsForProfile ensures 127.0.0.1 <remoteHost> entries exist for every
-// forward in the profile. It removes stale entries for this profile
-// (handles edits), then adds any that are missing — all in ONE write to avoid
-// multiple auth prompts.
+// assignBindIPs assigns a local loopback IP (127.0.0.1, 127.0.0.2, ...) to each
+// forward so multiple forwards sharing the same local port (e.g. Kafka brokers
+// on 9093) bind distinct loopback addresses without colliding.
+func assignBindIPs(forwards []PortForward) []string {
+	ips := make([]string, len(forwards))
+	usedAddr := map[string]bool{} // "ip:port"
+	hostIP := map[string]string{} // remoteHost -> ip
+	for i, fwd := range forwards {
+		host := strings.TrimSpace(fwd.RemoteHost)
+		if host != "" {
+			if ip, ok := hostIP[host]; ok {
+				key := fmt.Sprintf("%s:%d", ip, fwd.LocalPort)
+				if !usedAddr[key] {
+					ips[i] = ip
+					usedAddr[key] = true
+					continue
+				}
+			}
+		}
+		for octet := 1; octet <= 254; octet++ {
+			ip := fmt.Sprintf("127.0.0.%d", octet)
+			key := fmt.Sprintf("%s:%d", ip, fwd.LocalPort)
+			if !usedAddr[key] {
+				ips[i] = ip
+				usedAddr[key] = true
+				if host != "" && hostIP[host] == "" {
+					hostIP[host] = ip
+				}
+				break
+			}
+		}
+	}
+	return ips
+}
+
+// missingLoopbackAliases returns loopback IPs (other than 127.0.0.1) that are
+// not currently configured on a local network interface.
+func missingLoopbackAliases(ips []string) []string {
+	configured := map[string]bool{"127.0.0.1": true}
+	if addrs, err := net.InterfaceAddrs(); err == nil {
+		for _, addr := range addrs {
+			if ipNet, ok := addr.(*net.IPNet); ok {
+				configured[ipNet.IP.String()] = true
+			}
+		}
+	}
+	var missing []string
+	seen := map[string]bool{}
+	for _, ip := range ips {
+		if ip == "" || configured[ip] || seen[ip] {
+			continue
+		}
+		seen[ip] = true
+		missing = append(missing, ip)
+	}
+	return missing
+}
+
+// syncHostsForProfile ensures <bindIP> <remoteHost> entries exist for every
+// forward in the profile and that any required loopback aliases (127.0.0.2+)
+// are configured on lo0 — all in ONE admin prompt when changes are needed.
 func syncHostsForProfile(p Profile, allProfiles []Profile) error {
 	b, err := os.ReadFile(hostsFile)
 	if err != nil {
@@ -58,8 +116,9 @@ func syncHostsForProfile(p Profile, allProfiles []Profile) error {
 
 	// Now add missing entries for this profile's forwards
 	currentContent := strings.Join(filtered, "\n")
+	ips := assignBindIPs(p.Forwards)
 	var toAdd []string
-	for _, fwd := range p.Forwards {
+	for i, fwd := range p.Forwards {
 		host := strings.TrimSpace(fwd.RemoteHost)
 		if host == "" {
 			continue
@@ -68,33 +127,51 @@ func syncHostsForProfile(p Profile, allProfiles []Profile) error {
 		if strings.Contains(currentContent, host) {
 			continue
 		}
-		toAdd = append(toAdd, fmt.Sprintf("127.0.0.1\t%s\t%s%s", host, hostsTag, p.ID))
+		toAdd = append(toAdd, fmt.Sprintf("%s\t%s\t%s%s", ips[i], host, hostsTag, p.ID))
 	}
 
 	if len(toAdd) > 0 {
 		currentContent = strings.TrimRight(currentContent, "\n") + "\n" + strings.Join(toAdd, "\n") + "\n"
 	}
 
-	// Only write if something changed
-	if currentContent == existing {
+	missingAliases := missingLoopbackAliases(ips)
+	hostsChanged := currentContent != existing
+	if !hostsChanged && len(missingAliases) == 0 {
 		return nil
 	}
 
-	return writeHosts(currentContent)
+	if !hostsChanged {
+		currentContent = ""
+	}
+	return writeHostsAndAliases(currentContent, missingAliases)
 }
 
 // writeHosts writes content to /etc/hosts via osascript + sudo, which triggers
 // the native macOS Touch ID / password dialog.
 func writeHosts(content string) error {
-	// Escape single quotes in content for the shell script
-	escaped := strings.ReplaceAll(content, "'", "'\\''")
-	script := fmt.Sprintf(
-		`do shell script "printf '%%s' '%s' | sudo tee /etc/hosts > /dev/null" with administrator privileges`,
-		escaped,
-	)
+	return writeHostsAndAliases(content, nil)
+}
+
+// writeHostsAndAliases updates /etc/hosts (when content != "") and configures
+// any missing lo0 loopback aliases in a single macOS administrator prompt.
+func writeHostsAndAliases(content string, aliases []string) error {
+	var cmds []string
+	if content != "" {
+		escaped := strings.ReplaceAll(content, "'", "'\\''")
+		cmds = append(cmds, fmt.Sprintf("printf '%%s' '%s' | sudo tee /etc/hosts > /dev/null", escaped))
+	}
+	for _, ip := range aliases {
+		cmds = append(cmds, fmt.Sprintf("sudo ifconfig lo0 alias %s up", ip))
+	}
+	if len(cmds) == 0 {
+		return nil
+	}
+	// Escape double quotes for AppleScript string literal
+	shellCmd := strings.ReplaceAll(strings.Join(cmds, " && "), `"`, `\"`)
+	script := fmt.Sprintf(`do shell script "%s" with administrator privileges`, shellCmd)
 	out, err := exec.Command("osascript", "-e", script).CombinedOutput()
 	if err != nil {
-		return fmt.Errorf("update /etc/hosts: %s", strings.TrimSpace(string(out)))
+		return fmt.Errorf("update hosts/loopback: %s", strings.TrimSpace(string(out)))
 	}
 	return nil
 }
