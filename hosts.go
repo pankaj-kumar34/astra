@@ -6,10 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"sync"
 )
 
 const hostsFile = "/etc/hosts"
 const hostsTag = "# astra:"
+
+var hostsMu sync.Mutex
 
 // isAstraLine returns true if the line was written by Astra.
 func isAstraLine(line, profileID string) bool {
@@ -74,15 +77,22 @@ func missingLoopbackAliases(ips []string) []string {
 	return missing
 }
 
-// syncHostsForProfile ensures <bindIP> <remoteHost> entries exist for every
-// forward in the profile and that any required loopback aliases (127.0.0.2+)
-// are configured on lo0 — all in ONE admin prompt when changes are needed.
-func syncHostsForProfile(p Profile, allProfiles []Profile) error {
-	b, err := os.ReadFile(hostsFile)
-	if err != nil {
-		return fmt.Errorf("read /etc/hosts: %w", err)
+// computeHostsUpdate updates existing /etc/hosts content for profile p while
+// preserving existing matching entries in place so unchanged profiles produce
+// identical content and never trigger unnecessary admin prompts.
+func computeHostsUpdate(existing string, p Profile, allProfiles []Profile) (string, []string) {
+	ips := assignBindIPs(p.Forwards)
+
+	// Desired remoteHost -> bindIP for this profile
+	desiredByHost := map[string]string{}
+	for i, fwd := range p.Forwards {
+		host := strings.TrimSpace(fwd.RemoteHost)
+		if host != "" {
+			if _, exists := desiredByHost[host]; !exists {
+				desiredByHost[host] = ips[i]
+			}
+		}
 	}
-	existing := string(b)
 
 	// Build set of hosts still needed by other profiles (for removal logic)
 	stillNeeded := map[string]bool{}
@@ -91,59 +101,112 @@ func syncHostsForProfile(p Profile, allProfiles []Profile) error {
 			continue
 		}
 		for _, fwd := range op.Forwards {
-			if fwd.RemoteHost != "" {
-				stillNeeded[strings.TrimSpace(fwd.RemoteHost)] = true
+			if host := strings.TrimSpace(fwd.RemoteHost); host != "" {
+				stillNeeded[host] = true
 			}
 		}
 	}
 
-	// Parse existing lines, filter out this profile's entries (unless still needed by another profile)
 	lines := strings.Split(existing, "\n")
 	filtered := make([]string, 0, len(lines))
+	satisfied := map[string]bool{}
+
 	for _, line := range lines {
 		if isAstraLine(line, p.ID) {
-			// Extract the hostname from the line to check if still needed
 			fields := strings.Fields(line)
-			if len(fields) >= 2 && stillNeeded[fields[1]] {
-				// Another profile still needs this host — keep the line
-				filtered = append(filtered, line)
+			if len(fields) >= 2 {
+				ip, host := fields[0], fields[1]
+				if desiredIP, wanted := desiredByHost[host]; wanted {
+					if ip == desiredIP && !satisfied[host] {
+						// Exact matching entry already exists — keep in place
+						satisfied[host] = true
+						filtered = append(filtered, line)
+					}
+					// Otherwise drop stale IP or duplicate; re-added below if needed
+					continue
+				}
+				if stillNeeded[host] {
+					// Another profile still needs this host — keep the line
+					filtered = append(filtered, line)
+				}
 			}
-			// else: drop it (stale entry for this profile)
+			// Drop stale entry for this profile
 			continue
 		}
+
 		filtered = append(filtered, line)
+
+		// Record any desired hosts already mapped by another entry (non-comment)
+		bare := line
+		if idx := strings.IndexByte(bare, '#'); idx >= 0 {
+			bare = bare[:idx]
+		}
+		fields := strings.Fields(bare)
+		if len(fields) >= 2 {
+			for _, h := range fields[1:] {
+				if _, wanted := desiredByHost[h]; wanted {
+					satisfied[h] = true
+				}
+			}
+		}
 	}
 
-	// Now add missing entries for this profile's forwards
-	currentContent := strings.Join(filtered, "\n")
-	ips := assignBindIPs(p.Forwards)
 	var toAdd []string
 	for i, fwd := range p.Forwards {
 		host := strings.TrimSpace(fwd.RemoteHost)
-		if host == "" {
+		if host == "" || satisfied[host] {
 			continue
 		}
-		// Skip if already present in the filtered content (any owner)
-		if strings.Contains(currentContent, host) {
-			continue
-		}
+		satisfied[host] = true
 		toAdd = append(toAdd, fmt.Sprintf("%s\t%s\t%s%s", ips[i], host, hostsTag, p.ID))
 	}
 
+	currentContent := strings.Join(filtered, "\n")
 	if len(toAdd) > 0 {
 		currentContent = strings.TrimRight(currentContent, "\n") + "\n" + strings.Join(toAdd, "\n") + "\n"
 	}
+	return currentContent, ips
+}
 
-	missingAliases := missingLoopbackAliases(ips)
-	hostsChanged := currentContent != existing
+// syncHostsForProfile ensures <bindIP> <remoteHost> entries exist for every
+// forward in the profile and that any required loopback aliases (127.0.0.2+)
+// are configured on lo0 — all in ONE admin prompt when changes are needed.
+func syncHostsForProfile(p Profile, allProfiles []Profile) error {
+	return syncHostsForProfiles([]Profile{p}, allProfiles)
+}
+
+// syncHostsForProfiles syncs /etc/hosts and loopback aliases for multiple
+// profiles in a single serialized pass (at most one admin prompt).
+func syncHostsForProfiles(profiles []Profile, allProfiles []Profile) error {
+	if len(profiles) == 0 {
+		return nil
+	}
+	hostsMu.Lock()
+	defer hostsMu.Unlock()
+
+	b, err := os.ReadFile(hostsFile)
+	if err != nil {
+		return fmt.Errorf("read /etc/hosts: %w", err)
+	}
+	existing := string(b)
+	current := existing
+	var allIPs []string
+	for _, p := range profiles {
+		var ips []string
+		current, ips = computeHostsUpdate(current, p, allProfiles)
+		allIPs = append(allIPs, ips...)
+	}
+
+	missingAliases := missingLoopbackAliases(allIPs)
+	hostsChanged := current != existing
 	if !hostsChanged && len(missingAliases) == 0 {
 		return nil
 	}
 
 	if !hostsChanged {
-		currentContent = ""
+		current = ""
 	}
-	return writeHostsAndAliases(currentContent, missingAliases)
+	return writeHostsAndAliases(current, missingAliases)
 }
 
 // writeHosts writes content to /etc/hosts via osascript + sudo, which triggers
@@ -179,6 +242,9 @@ func writeHostsAndAliases(content string, aliases []string) error {
 // removeHostsForDeletedProfile removes all lines tagged # astra:<profileID> from
 // /etc/hosts for a profile that is being deleted.
 func removeHostsForDeletedProfile(profileID string) error {
+	hostsMu.Lock()
+	defer hostsMu.Unlock()
+
 	b, err := os.ReadFile(hostsFile)
 	if err != nil {
 		return fmt.Errorf("read /etc/hosts: %w", err)

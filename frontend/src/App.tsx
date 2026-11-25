@@ -59,6 +59,11 @@ export default function App() {
     setView('detail')
   }
 
+  function handleGoHome() {
+    setSelectedProfileId(null)
+    setView('detail')
+  }
+
   return (
     <TooltipProvider>
       <div className="flex h-screen w-screen overflow-hidden bg-zinc-100 font-sans text-zinc-900 antialiased select-none">
@@ -68,6 +73,7 @@ export default function App() {
           tunnelStates={tunnelStates}
           selectedId={selectedProfileId}
           onSelect={handleSelect}
+          onGoHome={handleGoHome}
           onNew={openNew}
           onDisconnectAll={disconnectAll}
           version={updater.versionInfo?.version}

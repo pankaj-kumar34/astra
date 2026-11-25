@@ -39,13 +39,22 @@ func (s *AstraService) AutoConnectAll() {
 	if err != nil {
 		return
 	}
+	var autoProfiles []Profile
 	for _, p := range data.Profiles {
 		if p.AutoConnect {
+			autoProfiles = append(autoProfiles, p)
+		}
+	}
+	if len(autoProfiles) == 0 {
+		return
+	}
+	go func() {
+		if err := syncHostsForProfiles(autoProfiles, data.Profiles); err != nil {
+			return
+		}
+		for _, p := range autoProfiles {
 			cp := p
 			go func(profile Profile) {
-				if err := syncHostsForProfile(profile, data.Profiles); err != nil {
-					return
-				}
 				_ = s.manager.Connect(profile, func(state TunnelState) {
 					s.emit("tunnel:state", state)
 					s.checkDisconnectTransition(profile, state)
@@ -56,7 +65,7 @@ func (s *AstraService) AutoConnectAll() {
 				})
 			}(cp)
 		}
-	}
+	}()
 }
 
 // ── Profiles ────────────────────────────────────────────────────────────────

@@ -9,6 +9,7 @@ interface Props {
   tunnelStates: Record<string, TunnelState>
   selectedId: string | null
   onSelect: (id: string) => void
+  onGoHome: () => void
   onNew: () => void
   onDisconnectAll?: () => void
   version?: string
@@ -22,6 +23,7 @@ export function ProfileList({
   tunnelStates,
   selectedId,
   onSelect,
+  onGoHome,
   onNew,
   onDisconnectAll,
   version,
@@ -61,7 +63,12 @@ export function ProfileList({
       <div className="border-b border-zinc-800/70 px-5 pt-6 pb-4.5">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="flex size-9 shrink-0 items-center justify-center rounded-xl border border-indigo-500/30 bg-linear-to-br from-indigo-500/20 via-zinc-800 to-zinc-900 shadow-inner shadow-indigo-500/10">
+            <button
+              type="button"
+              onClick={onGoHome}
+              title="Back to home"
+              className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-xl border border-indigo-500/30 bg-linear-to-br from-indigo-500/20 via-zinc-800 to-zinc-900 shadow-inner shadow-indigo-500/10 transition-colors hover:border-indigo-400/50"
+            >
               <svg width="17" height="19" viewBox="0 0 11 13" fill="none">
                 <defs>
                   <linearGradient id="boltGrad" x1="8" y1="0" x2="3" y2="13" gradientUnits="userSpaceOnUse">
@@ -71,10 +78,17 @@ export function ProfileList({
                 </defs>
                 <path d="M7 0.5L1 7h4.5L4 12.5L10 6H5.5L7 0.5Z" fill="url(#boltGrad)" />
               </svg>
-            </div>
+            </button>
             <div>
               <div className="flex items-center gap-1.5">
-                <span className="text-[15px] font-bold tracking-tight text-white">Astra</span>
+                <button
+                  type="button"
+                  onClick={onGoHome}
+                  title="Back to home"
+                  className="cursor-pointer text-[15px] font-bold tracking-tight text-white transition-colors hover:text-indigo-300"
+                >
+                  Astra
+                </button>
                 {onOpenUpdate && (
                   <button
                     onClick={onOpenUpdate}
