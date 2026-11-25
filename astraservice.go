@@ -243,9 +243,9 @@ func (s *AstraService) Disconnect(profileID string) error {
 
 	err := s.manager.Disconnect(profileID)
 
-	// Clean up any remaining SSH processes targeting this profile
+	// Clean up any remaining SSH processes targeting this profile (without touching other active profiles)
 	if profile.ID != "" {
-		killSSHForProfile(profile)
+		killSSHForProfile(profile, s.manager.otherActivePIDs(profileID))
 	}
 
 	state := s.manager.GetState(profileID)
@@ -271,7 +271,7 @@ func (s *AstraService) DisconnectAll() error {
 			delete(s.prevStatus, p.ID)
 			s.prevMu.Unlock()
 			_ = s.manager.Disconnect(p.ID)
-			killSSHForProfile(p)
+			killSSHForProfile(p, nil)
 			state := s.manager.GetState(p.ID)
 			s.emit("tunnel:state", state)
 		}
@@ -299,7 +299,7 @@ func (s *AstraService) cleanupAllTunnels() {
 	s.manager.DisconnectAll()
 	if data, err := loadData(); err == nil {
 		for _, p := range data.Profiles {
-			killSSHForProfile(p)
+			killSSHForProfile(p, nil)
 		}
 	}
 }

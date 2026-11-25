@@ -61,6 +61,11 @@ export function UpdateModal({
   const hasUpdate = Boolean(updateResult?.hasUpdate)
   const canSelfUpdate = Boolean(updateResult?.canSelfUpdate && updateResult?.assetUrl)
   const pct = Math.min(100, Math.max(0, Math.round(progress?.percent ?? 0)))
+  const releaseNotes = (updateResult?.releaseNotes ?? '')
+    .split('\n')
+    .filter((line) => !/^\*{0,2}Full Changelog\*{0,2}:/i.test(line.trim()))
+    .join('\n')
+    .trim()
 
   return (
     <div
@@ -172,9 +177,9 @@ export function UpdateModal({
                   )}
                 </div>
 
-                {updateResult.releaseNotes && (
+                {releaseNotes && (
                   <div className="max-h-44 overflow-y-auto rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-xs leading-relaxed whitespace-pre-wrap text-zinc-700">
-                    {updateResult.releaseNotes}
+                    {releaseNotes}
                   </div>
                 )}
 

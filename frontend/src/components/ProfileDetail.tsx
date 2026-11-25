@@ -611,23 +611,24 @@ function OverviewTab({
 }
 
 function connectHint(service: string, bindIP: string, localPort: number, remoteHost: string): string {
+  const host = remoteHost.trim() || bindIP
   switch (service) {
     case ServiceType.ServicePostgres:
     case 'postgres':
-      return `psql -h ${bindIP} -p ${localPort} -U <user> <dbname>`
+      return `psql -h ${host} -p ${localPort} -U <user> <dbname>`
     case ServiceType.ServiceRedis:
     case 'redis':
     case ServiceType.ServiceValkey:
     case 'valkey':
-      return `redis-cli -h ${bindIP} -p ${localPort}`
+      return `redis-cli -h ${host} -p ${localPort}`
     case ServiceType.ServiceElasticsearch:
     case 'elasticsearch':
-      return `curl http://${bindIP}:${localPort}`
+      return `curl http://${host}:${localPort}`
     case ServiceType.ServiceEventStreams:
     case 'eventstreams':
-      return `${remoteHost.trim() || bindIP}:${localPort}`
+      return `${host}:${localPort}`
     default:
-      return `nc -zv ${bindIP} ${localPort}`
+      return `nc -zv ${host} ${localPort}`
   }
 }
 

@@ -159,3 +159,92 @@ func TestForwardBindFailureHandling(t *testing.T) {
 		t.Fatalf("expected port-in-use message, got %q", msg)
 	}
 }
+
+func TestConnectPreservesOtherActiveProfiles(t *testing.T) {
+	tm := NewTunnelManager()
+	tm.mu.Lock()
+	tm.tunnels["p1"] = &tunnelProcess{
+		profile: Profile{
+			ID:   "p1",
+			Name: "Prod DB",
+			Forwards: []PortForward{
+				{LocalPort: 5432, RemoteHost: "pg-prod.internal", RemotePort: 5432},
+			},
+		},
+		state: TunnelState{
+			ProfileID: "p1",
+			Status:    StatusConnected,
+			PID:       42424,
+		},
+	}
+	tm.mu.Unlock()
+
+	pids := tm.otherActivePIDs("p2")
+	if !pids[42424] {
+		t.Fatalf("expected active PID 42424 in skip set, got %v", pids)
+	}
+	if len(tm.otherActivePIDs("p1")) != 0 {
+		t.Fatalf("expected p1's own PID to be excluded from its skip set")
+	}
+
+	p2 := Profile{
+		ID:   "p2",
+		Name: "Staging DB",
+		Forwards: []PortForward{
+			{LocalPort: 5432, RemoteHost: "pg-stage.internal", RemotePort: 5432},
+		},
+	}
+	err := tm.Connect(p2, func(TunnelState) {})
+	if err == nil || !strings.Contains(err.Error(), "already in use by active profile") {
+		t.Fatalf("expected active profile port conflict error, got %v", err)
+	}
+	if st := tm.GetState("p1"); st.Status != StatusConnected {
+		t.Fatalf("expected p1 to remain connected, got %v", st.Status)
+	}
+}
+
+func TestProbePortCustomDetectsImmediateEOF(t *testing.T) {
+	// Simulates an SSH forward listener that accepts TCP locally, then immediately
+	// closes the socket when the bastion fails remote DNS/connect.
+	eofLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer eofLn.Close()
+	go func() {
+		for {
+			c, err := eofLn.Accept()
+			if err != nil {
+				return
+			}
+			c.Close()
+		}
+	}()
+
+	eofFwd := PortForward{Service: ServiceCustom, LocalPort: eofLn.Addr().(*net.TCPAddr).Port}
+	if probePort("127.0.0.1", eofFwd) {
+		t.Fatalf("expected probePort to return false when tunnel immediately closes with EOF")
+	}
+
+	// Simulates a live banner-sending service (e.g. SMTP 220).
+	bannerLn, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatalf("listen: %v", err)
+	}
+	defer bannerLn.Close()
+	go func() {
+		for {
+			c, err := bannerLn.Accept()
+			if err != nil {
+				return
+			}
+			_, _ = c.Write([]byte("220 smtp ready\r\n"))
+			c.Close()
+		}
+	}()
+
+	bannerFwd := PortForward{Service: ServiceCustom, LocalPort: bannerLn.Addr().(*net.TCPAddr).Port}
+	if !probePort("127.0.0.1", bannerFwd) {
+		t.Fatalf("expected probePort to return true for live service sending banner")
+	}
+}

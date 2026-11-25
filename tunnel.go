@@ -89,15 +89,41 @@ func (tm *TunnelManager) Connect(profile Profile, onUpdate func(TunnelState)) er
 			return fmt.Errorf("tunnel already active")
 		}
 	}
+	// Check for local bind address conflicts with other active profiles before touching any processes
+	newIPs := assignBindIPs(profile.Forwards)
+	newAddrs := make(map[string]int, len(profile.Forwards))
+	for i, fwd := range profile.Forwards {
+		if fwd.LocalPort > 0 {
+			newAddrs[fmt.Sprintf("%s:%d", newIPs[i], fwd.LocalPort)] = fwd.LocalPort
+		}
+	}
+	for id, tp := range tm.tunnels {
+		if id == profile.ID || (tp.state.Status != StatusConnected && tp.state.Status != StatusConnecting) {
+			continue
+		}
+		otherIPs := assignBindIPs(tp.profile.Forwards)
+		for i, fwd := range tp.profile.Forwards {
+			addr := fmt.Sprintf("%s:%d", otherIPs[i], fwd.LocalPort)
+			if _, conflict := newAddrs[addr]; conflict {
+				name := tp.profile.Name
+				if name == "" {
+					name = id
+				}
+				tm.mu.Unlock()
+				return fmt.Errorf("local address %s is already in use by active profile %q", addr, name)
+			}
+		}
+	}
 	tm.mu.Unlock()
 
-	// Terminate any stale SSH process and free local ports before connecting
-	killSSHForProfile(profile)
+	// Terminate any stale SSH process and free local ports, without touching other active profiles
+	skipPIDs := tm.otherActivePIDs(profile.ID)
+	killSSHForProfile(profile, skipPIDs)
 	freed := map[int]bool{}
 	for _, fwd := range profile.Forwards {
 		if !freed[fwd.LocalPort] {
 			freed[fwd.LocalPort] = true
-			freePort(fwd.LocalPort)
+			freePort(fwd.LocalPort, skipPIDs)
 		}
 	}
 
@@ -461,10 +487,31 @@ func (tm *TunnelManager) Disconnect(profileID string) error {
 		}
 	}
 
-	// Terminate any matching SSH process for this profile
-	killSSHForProfile(profile)
+	// Terminate any matching stale SSH process for this profile without affecting other active profiles
+	killSSHForProfile(profile, tm.otherActivePIDs(profileID))
 
 	return nil
+}
+
+// otherActivePIDs returns PIDs belonging to other currently active tunnels.
+func (tm *TunnelManager) otherActivePIDs(excludeProfileID string) map[int]bool {
+	tm.mu.RLock()
+	defer tm.mu.RUnlock()
+	pids := make(map[int]bool)
+	for id, tp := range tm.tunnels {
+		if id == excludeProfileID {
+			continue
+		}
+		if tp.state.Status == StatusConnected || tp.state.Status == StatusConnecting {
+			if tp.state.PID > 0 {
+				pids[tp.state.PID] = true
+			}
+			if tp.cmd != nil && tp.cmd.Process != nil && tp.cmd.Process.Pid > 0 {
+				pids[tp.cmd.Process.Pid] = true
+			}
+		}
+	}
+	return pids
 }
 
 func buildSSHArgs(profile Profile) []string {
@@ -486,8 +533,9 @@ func buildSSHArgs(profile Profile) []string {
 	return args
 }
 
-// killSSHForProfile kills any active SSH process targeting the profile's bastion host.
-func killSSHForProfile(profile Profile) {
+// killSSHForProfile kills any active SSH process targeting the profile's bastion host,
+// skipping PIDs owned by other active tunnels.
+func killSSHForProfile(profile Profile, skipPIDs map[int]bool) {
 	if profile.Host == "" || profile.User == "" {
 		return
 	}
@@ -499,7 +547,7 @@ func killSSHForProfile(profile Profile) {
 	myPid := os.Getpid()
 	for _, pidStr := range strings.Fields(string(out)) {
 		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-		if err != nil || pid == myPid {
+		if err != nil || pid == myPid || skipPIDs[pid] {
 			continue
 		}
 		if p, err := os.FindProcess(pid); err == nil {
@@ -508,8 +556,9 @@ func killSSHForProfile(profile Profile) {
 	}
 }
 
-// freePort kills any process holding the given local TCP port.
-func freePort(port int) {
+// freePort kills any process holding the given local TCP port,
+// skipping PIDs owned by other active tunnels.
+func freePort(port int, skipPIDs map[int]bool) {
 	if port <= 0 {
 		return
 	}
@@ -520,7 +569,7 @@ func freePort(port int) {
 	myPid := os.Getpid()
 	for _, pidStr := range strings.Fields(string(out)) {
 		pid, err := strconv.Atoi(strings.TrimSpace(pidStr))
-		if err != nil || pid == myPid {
+		if err != nil || pid == myPid || skipPIDs[pid] {
 			continue
 		}
 		if p, err := os.FindProcess(pid); err == nil {
@@ -676,12 +725,21 @@ func probePort(bindIP string, fwd PortForward) bool {
 		return ok
 
 	default:
-		// Custom / unknown — plain TCP connect
+		// Custom / unknown — wait briefly to ensure SSH doesn't immediately close
+		// the channel on remote DNS/connect failure (EOF), while allowing silent protocols.
 		conn, err := net.DialTimeout("tcp", addr, 3*time.Second)
 		if err != nil {
 			return false
 		}
-		conn.Close()
+		defer conn.Close()
+		_ = conn.SetReadDeadline(time.Now().Add(1 * time.Second))
+		buf := make([]byte, 1)
+		if _, err := conn.Read(buf); err != nil {
+			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+				return true
+			}
+			return false
+		}
 		return true
 	}
 }

@@ -1,5 +1,5 @@
 import { useState, useMemo } from 'react'
-import { Profile, TunnelState, TunnelStatus, SERVICE_PRESETS } from '@/types'
+import { Profile, TunnelState, TunnelStatus, ServiceType, SERVICE_PRESETS } from '@/types'
 import { StatusBadge } from './StatusBadge'
 import { cn } from '@/lib/utils'
 import { Server, Plus, Search, X, Radio, Power } from 'lucide-react'
@@ -234,31 +234,43 @@ export function ProfileList({
                   </div>
                 </div>
 
-                {/* Forwards preview pills */}
-                {(profile.forwards?.length ?? 0) > 0 && (
-                  <div className="mt-2.5 flex flex-wrap gap-1.5 pl-12">
-                    {(profile.forwards ?? []).slice(0, 3).map(f => {
-                      const preset = SERVICE_PRESETS[f.service]
-                      const badgeClass = preset?.darkColor ?? 'bg-zinc-800 text-zinc-300 border-zinc-700/60'
-                      return (
-                        <span
-                          key={f.id}
-                          className={cn(
-                            'rounded-md border px-2 py-0.5 font-mono text-[10px] leading-none',
-                            badgeClass
-                          )}
-                        >
-                          {f.service || f.localPort}
+                {/* Forwards preview pills — grouped by service on a single line */}
+                {(profile.forwards?.length ?? 0) > 0 && (() => {
+                  const counts = new Map<string, { service: ServiceType; count: number }>()
+                  for (const f of profile.forwards ?? []) {
+                    const key = f.service || String(f.localPort)
+                    const cur = counts.get(key)
+                    if (cur) cur.count++
+                    else counts.set(key, { service: f.service, count: 1 })
+                  }
+                  const grouped = Array.from(counts.entries())
+                  const visible = grouped.slice(0, 2)
+                  const overflow = grouped.length - visible.length
+                  return (
+                    <div className="mt-2.5 flex items-center gap-1.5 overflow-hidden pl-12">
+                      {visible.map(([key, { service, count }]) => {
+                        const preset = SERVICE_PRESETS[service]
+                        const badgeClass = preset?.darkColor ?? 'bg-zinc-800 text-zinc-300 border-zinc-700/60'
+                        return (
+                          <span
+                            key={key}
+                            className={cn(
+                              'shrink-0 rounded-md border px-2 py-0.5 font-mono text-[10px] leading-none',
+                              badgeClass
+                            )}
+                          >
+                            {count > 1 ? `${key} ×${count}` : key}
+                          </span>
+                        )
+                      })}
+                      {overflow > 0 && (
+                        <span className="shrink-0 px-1 py-0.5 font-mono text-[9px] text-zinc-500">
+                          +{overflow}
                         </span>
-                      )
-                    })}
-                    {(profile.forwards?.length ?? 0) > 3 && (
-                      <span className="px-1 py-0.5 font-mono text-[9px] text-zinc-500">
-                        +{profile.forwards!.length - 3}
-                      </span>
-                    )}
-                  </div>
-                )}
+                      )}
+                    </div>
+                  )
+                })()}
               </button>
             )
           })
