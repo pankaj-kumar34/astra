@@ -5,12 +5,15 @@ import (
 	"net"
 	"os"
 	"os/exec"
+	"runtime"
+	"sort"
 	"strings"
 	"sync"
 )
 
 const hostsFile = "/etc/hosts"
 const hostsTag = "# astra:"
+const loopbackPlistPath = "/Library/LaunchDaemons/com.astra.loopback.plist"
 
 var hostsMu sync.Mutex
 
@@ -168,6 +171,66 @@ func computeHostsUpdate(existing string, p Profile, allProfiles []Profile) (stri
 	return currentContent, ips
 }
 
+// collectLoopbackAliases returns all unique loopback IPs (other than 127.0.0.1)
+// required across the given profiles, sorted for deterministic output.
+func collectLoopbackAliases(profiles []Profile) []string {
+	seen := map[string]bool{}
+	var aliases []string
+	for _, p := range profiles {
+		for _, ip := range assignBindIPs(p.Forwards) {
+			if ip == "" || ip == "127.0.0.1" || seen[ip] {
+				continue
+			}
+			seen[ip] = true
+			aliases = append(aliases, ip)
+		}
+	}
+	sort.Strings(aliases)
+	return aliases
+}
+
+// loopbackLaunchDaemonPlist returns the macOS LaunchDaemon plist content that
+// restores Astra's loopback aliases on lo0 at every system boot so Astra never
+// has to prompt for an administrator password after a reboot.
+func loopbackLaunchDaemonPlist(aliases []string) string {
+	cmds := make([]string, 0, len(aliases))
+	for _, ip := range aliases {
+		cmds = append(cmds, fmt.Sprintf("/sbin/ifconfig lo0 alias %s up", ip))
+	}
+	return fmt.Sprintf(`<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.astra.loopback</string>
+	<key>ProgramArguments</key>
+	<array>
+		<string>/bin/sh</string>
+		<string>-c</string>
+		<string>%s</string>
+	</array>
+	<key>RunAtLoad</key>
+	<true/>
+</dict>
+</plist>
+`, strings.Join(cmds, "; "))
+}
+
+// profileNeedsHostOrAliasSync returns true if profile p currently requires
+// changes to /etc/hosts or missing lo0 loopback aliases.
+func profileNeedsHostOrAliasSync(p Profile, allProfiles []Profile) bool {
+	b, err := os.ReadFile(hostsFile)
+	if err != nil {
+		return true
+	}
+	existing := string(b)
+	updated, ips := computeHostsUpdate(existing, p, allProfiles)
+	if updated != existing {
+		return true
+	}
+	return len(missingLoopbackAliases(ips)) > 0
+}
+
 // syncHostsForProfile ensures <bindIP> <remoteHost> entries exist for every
 // forward in the profile and that any required loopback aliases (127.0.0.2+)
 // are configured on lo0 — all in ONE admin prompt when changes are needed.
@@ -206,31 +269,51 @@ func syncHostsForProfiles(profiles []Profile, allProfiles []Profile) error {
 	if !hostsChanged {
 		current = ""
 	}
-	return writeHostsAndAliases(current, missingAliases)
+	persistAliases := collectLoopbackAliases(allProfiles)
+	return writeHostsAndAliases(current, missingAliases, persistAliases)
 }
 
 // writeHosts writes content to /etc/hosts via osascript + sudo, which triggers
 // the native macOS Touch ID / password dialog.
 func writeHosts(content string) error {
-	return writeHostsAndAliases(content, nil)
+	return writeHostsAndAliases(content, nil, nil)
 }
 
-// writeHostsAndAliases updates /etc/hosts (when content != "") and configures
-// any missing lo0 loopback aliases in a single macOS administrator prompt.
-func writeHostsAndAliases(content string, aliases []string) error {
+// buildAdminShellCommands builds the root shell commands to update /etc/hosts,
+// configure missing lo0 loopback aliases, and persist loopback aliases across
+// macOS reboots via a LaunchDaemon.
+func buildAdminShellCommands(content string, aliases []string, persistAliases []string, goos string) []string {
 	var cmds []string
 	if content != "" {
 		escaped := strings.ReplaceAll(content, "'", "'\\''")
-		cmds = append(cmds, fmt.Sprintf("printf '%%s' '%s' | sudo tee /etc/hosts > /dev/null", escaped))
+		cmds = append(cmds, fmt.Sprintf("printf '%%s' '%s' | tee /etc/hosts > /dev/null", escaped))
 	}
 	for _, ip := range aliases {
-		cmds = append(cmds, fmt.Sprintf("sudo ifconfig lo0 alias %s up", ip))
+		cmds = append(cmds, fmt.Sprintf("/sbin/ifconfig lo0 alias %s up", ip))
 	}
+	if len(persistAliases) > 0 && goos == "darwin" {
+		plist := loopbackLaunchDaemonPlist(persistAliases)
+		escapedPlist := strings.ReplaceAll(plist, "'", "'\\''")
+		cmds = append(cmds,
+			fmt.Sprintf("printf '%%s' '%s' > %s", escapedPlist, loopbackPlistPath),
+			fmt.Sprintf("chown root:wheel %s", loopbackPlistPath),
+			fmt.Sprintf("chmod 644 %s", loopbackPlistPath),
+		)
+	}
+	return cmds
+}
+
+// writeHostsAndAliases updates /etc/hosts (when content != ""), configures any
+// missing lo0 loopback aliases, and installs/updates the macOS LaunchDaemon so
+// loopback aliases survive reboots — all in a single macOS administrator prompt.
+func writeHostsAndAliases(content string, aliases []string, persistAliases []string) error {
+	cmds := buildAdminShellCommands(content, aliases, persistAliases, runtime.GOOS)
 	if len(cmds) == 0 {
 		return nil
 	}
-	// Escape double quotes for AppleScript string literal
-	shellCmd := strings.ReplaceAll(strings.Join(cmds, " && "), `"`, `\"`)
+	// Escape backslashes and double quotes for AppleScript string literal
+	appleScriptEscaper := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
+	shellCmd := appleScriptEscaper.Replace(strings.Join(cmds, " && "))
 	script := fmt.Sprintf(`do shell script "%s" with administrator privileges`, shellCmd)
 	out, err := exec.Command("osascript", "-e", script).CombinedOutput()
 	if err != nil {

@@ -79,3 +79,48 @@ func TestComputeHostsUpdateDoesNotSubstringMatchOtherHosts(t *testing.T) {
 		t.Fatalf("expected db.internal to be added despite mydb.internal existing, got:\n%s", got)
 	}
 }
+
+func TestCollectLoopbackAliasesAndLaunchDaemonPlist(t *testing.T) {
+	p1 := Profile{
+		ID: "kafka",
+		Forwards: []PortForward{
+			{LocalPort: 9093, RemoteHost: "kafka-0.internal", RemotePort: 9093},
+			{LocalPort: 9093, RemoteHost: "kafka-1.internal", RemotePort: 9093},
+			{LocalPort: 9093, RemoteHost: "kafka-2.internal", RemotePort: 9093},
+		},
+	}
+	p2 := Profile{
+		ID: "pg",
+		Forwards: []PortForward{
+			{LocalPort: 5432, RemoteHost: "pg.internal", RemotePort: 5432},
+		},
+	}
+
+	aliases := collectLoopbackAliases([]Profile{p1, p2})
+	if len(aliases) != 2 || aliases[0] != "127.0.0.2" || aliases[1] != "127.0.0.3" {
+		t.Fatalf("unexpected loopback aliases: %v", aliases)
+	}
+
+	plist := loopbackLaunchDaemonPlist(aliases)
+	if !strings.Contains(plist, "<string>com.astra.loopback</string>") {
+		t.Fatalf("expected LaunchDaemon label in plist, got:\n%s", plist)
+	}
+	if !strings.Contains(plist, "/sbin/ifconfig lo0 alias 127.0.0.2 up; /sbin/ifconfig lo0 alias 127.0.0.3 up") {
+		t.Fatalf("expected ifconfig commands in plist, got:\n%s", plist)
+	}
+	if !strings.Contains(plist, "<key>RunAtLoad</key>") {
+		t.Fatalf("expected RunAtLoad key in plist, got:\n%s", plist)
+	}
+
+	cmds := buildAdminShellCommands("", []string{"127.0.0.2", "127.0.0.3"}, aliases, "darwin")
+	joined := strings.Join(cmds, " && ")
+	if !strings.Contains(joined, "/sbin/ifconfig lo0 alias 127.0.0.2 up") {
+		t.Fatalf("expected immediate ifconfig alias command, got:\n%s", joined)
+	}
+	if !strings.Contains(joined, loopbackPlistPath) {
+		t.Fatalf("expected LaunchDaemon plist write in admin commands, got:\n%s", joined)
+	}
+	if !strings.Contains(joined, "chown root:wheel "+loopbackPlistPath) {
+		t.Fatalf("expected chown root:wheel on plist, got:\n%s", joined)
+	}
+}

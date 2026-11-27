@@ -49,10 +49,11 @@ func (s *AstraService) AutoConnectAll() {
 		return
 	}
 	go func() {
-		if err := syncHostsForProfiles(autoProfiles, data.Profiles); err != nil {
-			return
-		}
+		syncErr := syncHostsForProfiles(autoProfiles, data.Profiles)
 		for _, p := range autoProfiles {
+			if syncErr != nil && profileNeedsHostOrAliasSync(p, data.Profiles) {
+				continue
+			}
 			cp := p
 			go func(profile Profile) {
 				_ = s.manager.Connect(profile, func(state TunnelState) {
